@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Caches
+.cache
+*.tsbuildinfo
+
+# Test coverage
+coverage
+*.lcov
+
+# dotenv environment variable files
+.env
+.env.*
+!.env.example
+
+# Output of 'npm pack' / 'bun pm pack'
+*.tgz
+
+# IDEs
+.idea
+.vscode
+
+# Finder (macOS) folder config
+.DS_Store
+
+ROADMAP.md
