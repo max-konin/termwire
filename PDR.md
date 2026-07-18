@@ -94,11 +94,11 @@ Responsibilities:
 Example commands:
 
 ```bash
-bridge up
-bridge open
-bridge files
-bridge status
-bridge doctor
+openbridge up
+openbridge open
+openbridge files
+openbridge status
+openbridge doctor
 ```
 
 ---
@@ -153,7 +153,7 @@ The plugin should contain as little logic as possible.
 Running
 
 ```bash
-bridge up
+openbridge up
 ```
 
 creates a tmux session similar to:
@@ -209,10 +209,10 @@ Users can explicitly request opening a file.
 Examples:
 
 ```bash
-bridge open
-bridge open app.ts
-bridge open app.ts:145
-bridge open-last
+openbridge open
+openbridge open app.ts
+openbridge open app.ts:145
+openbridge open-last
 ```
 
 Files are **never opened automatically**.
@@ -222,7 +222,7 @@ Files are **never opened automatically**.
 ## Health Check
 
 ```bash
-bridge doctor
+openbridge doctor
 ```
 
 Checks:
@@ -285,7 +285,7 @@ A developer should be able to:
 2. Run:
 
 ```bash
-bridge up
+openbridge up
 ```
 
 1. Start coding immediately.

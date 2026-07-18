@@ -1,0 +1,19 @@
+{
+  "name": "@openbridge/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "openbridge": "./bin/openbridge.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./state": "./src/state.ts"
+  },
+  "dependencies": {
+    "@openbridge/nvim": "workspace:*",
+    "@openbridge/tmux": "workspace:*",
+    "yaml": "^2.4.0"
+  }
+}
