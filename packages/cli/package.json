@@ -8,12 +8,10 @@
     "openbridge": "./bin/openbridge.ts"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./state": "./src/state.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "@openbridge/nvim": "workspace:*",
-    "@openbridge/tmux": "workspace:*",
-    "yaml": "^2.4.0"
+    "@openbridge/tmux": "workspace:*"
   }
 }

@@ -6,8 +6,5 @@
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts"
-  },
-  "dependencies": {
-    "@openbridge/cli": "workspace:*"
   }
 }

@@ -1,38 +1,36 @@
 # @openbridge/cli
 
-The project's main entry point — the `bridge` command. Orchestrates the other
-packages and owns the workspace configuration and state.
+The project's main entry point — the `openbridge` command. Orchestrates the
+other packages. Fully **stateless**: no config files, no state files —
+workspace identity lives in environment variables set by `openbridge up`.
 
 ## Why it exists
 
 This is the tool that removes the manual setup described in the PDR: bring up
-a tmux workspace with a single command, then open the files OpenCode touched
-directly in the editor.
+a tmux workspace with a single command, then open files in the running editor
+from anywhere inside the workspace.
 
 ## Commands
 
-| Command            | What it does                                       |
-| ------------------ | -------------------------------------------------- |
-| `openbridge up`        | create (or attach to) the workspace                |
-| `openbridge open`      | open a tracked file in Neovim (interactive picker) |
-| `openbridge open <f>`  | open a specific file, supports `file:line`         |
-| `openbridge open-last` | open the most recently touched file                |
-| `openbridge files`     | list files touched by OpenCode                     |
-| `openbridge status`    | show workspace status                              |
-| `openbridge doctor`    | check the environment (tmux / nvim / opencode)     |
+| Command                       | What it does                                       |
+| ----------------------------- | -------------------------------------------------- |
+| `openbridge up`               | create (or attach to) a session in the current dir |
+| `openbridge up -w <name>`     | create a git worktree and a session inside it      |
+| `openbridge open <f[:line]>`  | open a file in this workspace's Neovim             |
 
-## Responsibilities
+## How it works
 
-- create and inspect workspaces
-- open files
-- load configuration (`bridge.yaml`)
-- own the workspace state file and coordinate `@openbridge/tmux` and
-  `@openbridge/nvim`
+- `up` generates a unique session id, starts the tmux layout (Neovim,
+  OpenCode, shell), and creates every pane with `OPENBRIDGE_SESSION`,
+  `OPENBRIDGE_SOCKET`, and `OPENBRIDGE_EDITOR_PANE` in the environment.
+- `open` reads those variables (inherited by every process inside the
+  workspace), opens the file via `@openbridge/nvim`, and focuses the editor
+  pane via `@openbridge/tmux`. Outside a workspace it fails with a clear
+  error.
+- Multiple sessions of one project (via worktrees) never interfere: each has
+  its own socket and session name.
 
-## How it fits together
+## Dependencies
 
-- depends on `@openbridge/tmux` and `@openbridge/nvim` (adapters to the
-  binaries) and on `yaml` (config parsing)
-- the workspace state module is exported as `@openbridge/cli/state` and reused
-  by `@openbridge/opencode-plugin` to append touched files to the shared state
-  file
+`@openbridge/tmux` and `@openbridge/nvim` — thin adapters over the binaries.
+Nothing else.

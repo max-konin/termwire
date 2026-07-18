@@ -5,7 +5,7 @@
       "orchestrator": {
         "model": "openai/gpt-5.6-sol",
         "skills": ["*"],
-        "mcps": ["*", "!context7"],
+        "mcps": ["*", "!context7"]
       },
       "oracle": {
         "model": "openai/gpt-5.6-sol",
@@ -14,32 +14,28 @@
           "simplify",
           "superpowers/systematic-debugging",
           "superpowers/requesting-code-review",
-          "superpowers/receiving-code-review",
+          "superpowers/receiving-code-review"
         ],
-        "mcps": [],
+        "mcps": []
       },
       "council": {
-        "model": "openai/gpt-5.6-sol",
+        "model": "openai/gpt-5.6-sol"
       },
       "librarian": {
-        "model": [
-          { "id": "openai/gpt-5.6-luna", "variant": "low" },
-        ],
+        "model": [{ "id": "openai/gpt-5.6-luna", "variant": "low" }],
         "skills": [],
-        "mcps": ["websearch", "context7", "grep_app"],
+        "mcps": ["websearch", "context7", "grep_app"]
       },
       "explorer": {
-        "model": [
-          { "id": "openai/gpt-5.6-luna", "variant": "low" },
-        ],
+        "model": [{ "id": "openai/gpt-5.6-luna", "variant": "low" }],
         "skills": ["codemap"],
-        "mcps": [],
+        "mcps": []
       },
       "designer": {
         "model": "openai/gpt-5.6-sol",
         "variant": "medium",
         "skills": ["agent-browser", "a11y"],
-        "mcps": [],
+        "mcps": []
       },
       "fixer": {
         "model": "openai/gpt-5.6-terra",
@@ -47,35 +43,35 @@
         "skills": [
           "verify",
           "superpowers/test-driven-development",
-          "superpowers/verification-before-completion",
+          "superpowers/verification-before-completion"
         ],
-        "mcps": [],
-      },
-    },
+        "mcps": []
+      }
+    }
   },
   "multiplexer": {
     "type": "auto",
     "layout": "main-vertical",
-    "main_pane_size": 60,
+    "main_pane_size": 60
   },
   "council": {
     "presets": {
       "default": {
         "alpha": {
           "model": "github-copilot/claude-sonnet-4.6",
-          "variant": "high",
+          "variant": "high"
         },
         "beta": {
           "model": "github-copilot/gemini-3.1-pro-preview",
-          "variant": "high",
-        },
-      },
-    },
+          "variant": "high"
+        }
+      }
+    }
   },
   "todoContinuation": {
     "maxContinuations": 50,
     "cooldownMs": 3000,
     "autoEnable": false,
-    "autoEnableThreshold": 4,
-  },
+    "autoEnableThreshold": 4
+  }
 }

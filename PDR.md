@@ -1,6 +1,6 @@
 # Workspace Agent
 
-**Status:** Draft v0.1
+**Status:** Draft v0.2
 
 ## Vision
 
@@ -35,8 +35,9 @@ Workspace Bridge automates the entire workflow.
 ## Primary Goals
 
 - Create a ready-to-use tmux workspace with a single command.
-- Configure Neovim for communication with OpenCode.
-- Provide a simple way to open files from OpenCode in the running editor.
+- Support multiple parallel sessions per project via git worktrees.
+- Provide a simple way to open files in the running editor — from the shell or from OpenCode.
+- Keep the CLI stateless: no config files, no state files.
 - Keep the implementation small and modular.
 - Avoid any Neovim plugin.
 
@@ -81,24 +82,21 @@ TurboRepo is intentionally omitted.
 
 ## CLI
 
-The CLI is the main entry point.
+The CLI is the main entry point. It is fully **stateless**: workspace identity
+is discovered from environment variables, never from files on disk.
 
 Responsibilities:
 
-- create workspaces
-- inspect workspaces
-- open files
-- discover configuration
+- create workspaces (optionally in a new git worktree)
+- open files in the running editor
 - coordinate other packages
 
-Example commands:
+Commands:
 
 ```bash
-openbridge up
-openbridge open
-openbridge files
-openbridge status
-openbridge doctor
+openbridge up               # create (or attach to) a session in the current directory
+openbridge up -w <name>     # create a git worktree <name> and a session inside it
+openbridge open <file[:line]>
 ```
 
 ---
@@ -111,7 +109,7 @@ Responsibilities:
 
 - create sessions
 - create windows
-- create panes
+- create panes (with environment variables)
 - send commands
 - detect existing sessions
 
@@ -127,22 +125,23 @@ Responsibilities:
 
 - open files
 - jump to line
-- focus editor
 - detect running instance
 
-Implementation details (RPC, tmux, nvr, etc.) are internal.
+Implementation details (RPC via `nvim --server`) are internal.
 
 ---
 
 ## opencode-plugin
 
-A lightweight OpenCode plugin.
+A lightweight OpenCode plugin. It depends only on the OpenCode plugin API —
+not on any other openbridge package.
 
 Responsibilities:
 
-- expose commands to OpenCode
-- collect files referenced during the current session
-- request opening files in the editor
+- collect files edited/read during the current session — **in memory only**
+- expose a command to OpenCode to open a tracked file
+- open files by spawning `openbridge open <path>` (the workspace environment
+  is inherited from the OpenCode process)
 
 The plugin should contain as little logic as possible.
 
@@ -168,9 +167,19 @@ creates a tmux session similar to:
 └─────────────────────────────────────────────┘
 ```
 
-Neovim is started with a unique socket.
+Each session gets a unique name and a unique Neovim socket
+(`/tmp/openbridge/<session>.sock`). Every pane is created with the workspace
+environment:
 
-The OpenCode plugin automatically discovers the active workspace.
+| Variable                 | Meaning                         |
+| ------------------------ | ------------------------------- |
+| `OPENBRIDGE_SESSION`     | tmux session name               |
+| `OPENBRIDGE_SOCKET`      | Neovim RPC socket path          |
+| `OPENBRIDGE_EDITOR_PANE` | tmux pane id of the editor pane |
+
+Everything running inside the workspace (shell, OpenCode, the plugin)
+inherits these variables — that is how `openbridge open` always reaches the
+right editor, even with multiple sessions of the same project.
 
 ---
 
@@ -187,18 +196,23 @@ Includes:
 - OpenCode pane
 - shell pane
 
+`openbridge up` works in the current directory; running it again attaches to
+the existing session. `openbridge up -w <name>` creates a git worktree
+(directory `../<project>-<name>`, branch `<name>`) and starts an independent
+session inside it — this is how several agents can work on one project in
+parallel. Removing a worktree is manual (`git worktree remove`) in the MVP.
+
 ---
 
 ## File Tracking
 
-The OpenCode plugin maintains the current session state.
-
-Initially only:
+The OpenCode plugin keeps the current session state **in memory**:
 
 - edited files
 - mentioned/read files
 
-This information is kept only for the active session.
+This information lives only inside the plugin process and only for the active
+session. Nothing is written to disk.
 
 ---
 
@@ -206,54 +220,34 @@ This information is kept only for the active session.
 
 Users can explicitly request opening a file.
 
-Examples:
+From any workspace pane:
 
 ```bash
-openbridge open
 openbridge open app.ts
 openbridge open app.ts:145
-openbridge open-last
 ```
+
+From OpenCode: the plugin exposes a command that opens a tracked file by
+spawning `openbridge open <path>`.
+
+Outside a workspace (no `OPENBRIDGE_*` environment) the command fails with a
+clear error.
 
 Files are **never opened automatically**.
 
 ---
 
-## Health Check
-
-```bash
-openbridge doctor
-```
-
-Checks:
-
-- tmux installed
-- Neovim installed
-- OpenCode installed
-- active socket
-- workspace configuration
-
----
-
 # Configuration
 
-Configuration file (proposed):
-
-```yaml
-editor:
-  socket: /tmp/nvim.sock
-
-tmux:
-  session: workspace
-```
-
-The first version intentionally keeps configuration minimal.
+None. The MVP has no configuration files; workspace identity is derived at
+`up` time and carried by environment variables.
 
 ---
 
 # Design Principles
 
 - Explicit over automatic.
+- Stateless over persisted.
 - Small packages with clear responsibilities.
 - No editor plugin required.
 - No unnecessary abstractions.
@@ -265,9 +259,12 @@ The first version intentionally keeps configuration minimal.
 
 Not part of the MVP.
 
+- `openbridge doctor` / `openbridge status`
+- `openbridge down` and worktree cleanup
+- `openbridge files` / `openbridge open-last` in the shell
+- configuration file
 - Telescope integration
 - fzf integration
-- Multiple workspaces
 - Session history
 - Workspace persistence
 - Support for additional editors
@@ -290,4 +287,6 @@ openbridge up
 
 1. Start coding immediately.
 
-Opening files modified by OpenCode should require no manual searching or editor switching.
+Opening files modified by OpenCode should require no manual searching or
+editor switching, and several sessions of the same project must not interfere
+with each other.
