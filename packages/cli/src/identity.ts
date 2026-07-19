@@ -7,7 +7,9 @@ export interface WorkspaceIdentity {
 }
 
 export function sanitizeComponent(value: string, label: string): string {
-  const sanitized = value.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  const sanitized = value
+    .replace(/[^A-Za-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   if (sanitized.length === 0) {
     throw new Error(`${label} must contain a letter, number, _ or -`);
   }
@@ -19,10 +21,14 @@ export function createIdentity(options: {
   gitRoot?: string;
   name: string;
 }): WorkspaceIdentity {
-  const project = sanitizeComponent(basename(options.gitRoot ?? options.cwd), "project");
+  const project = sanitizeComponent(
+    basename(options.gitRoot ?? options.cwd),
+    "project",
+  );
   const name = sanitizeComponent(options.name, "name");
   const session = `${project}-${name}`;
   const socket = `/tmp/openbridge/${session}.sock`;
+
   if (Buffer.byteLength(socket) > 103) {
     throw new Error("socket path exceeds macOS Unix socket limit of 103 bytes");
   }

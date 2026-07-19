@@ -36,8 +36,8 @@ Workspace Bridge automates the entire workflow.
 
 - Create a ready-to-use tmux workspace with a single command.
 - Support multiple parallel sessions per project via git worktrees.
-- Provide a simple way to open files in the running editor — from the shell or from OpenCode.
-- Keep the CLI stateless: no config files, no state files.
+- Provide an explicit OpenCode tool to open files in the running editor.
+- Keep OpenBridge workspace identity stateless: no OpenBridge-owned workspace config or state files.
 - Keep the implementation small and modular.
 - Avoid any Neovim plugin.
 
@@ -90,7 +90,7 @@ Responsibilities:
 - create workspaces (optionally in a new git worktree)
 - coordinate other packages
 
-`openbridge open` is planned for a later phase; it is not currently implemented.
+The CLI owns `openbridge up <name>` only. File opening is an OpenCode plugin tool, not a shell command.
 
 Commands:
 
@@ -134,15 +134,14 @@ Implementation details (RPC via `nvim --server`) are internal.
 
 ## opencode-plugin
 
-A lightweight OpenCode plugin. It depends only on the OpenCode plugin API —
-not on any other openbridge package.
+A lightweight OpenCode plugin. It depends on the OpenCode plugin API and directly
+composes `@openbridge/nvim` and `@openbridge/tmux` adapters.
 
 Responsibilities:
 
-- collect files edited/read during the current session — **in memory only**
-- expose a command to OpenCode to open a tracked file
-- open files by spawning `openbridge open <path>` (the workspace environment
-  is inherited from the OpenCode process)
+- expose explicit `openbridge_open({ path, line? })` execution
+- read inherited workspace environment and open through the nvim/tmux adapters
+- add in-memory changed/read-file tracking and selection only in Phase 5
 
 The plugin should contain as little logic as possible.
 
@@ -205,7 +204,7 @@ the MVP.
 
 ---
 
-## File Tracking
+## File Tracking (Phase 5)
 
 The OpenCode plugin keeps the current session state **in memory**:
 
@@ -217,22 +216,16 @@ session. Nothing is written to disk.
 
 ---
 
-## Open File
+## Open File (Phase 4)
 
-Users can explicitly request opening a file.
+OpenCode explicitly invokes `openbridge_open({ path, line? })`. The tool resolves
+the path from the tool-call directory, reads inherited `OPENBRIDGE_SOCKET` and
+`OPENBRIDGE_EDITOR_PANE`, opens through `@openbridge/nvim`, then focuses through
+`@openbridge/tmux`. It requires no `openbridge` executable in `PATH`.
 
-From any workspace pane:
-
-```bash
-openbridge open app.ts
-openbridge open app.ts:145
-```
-
-From OpenCode: the plugin exposes a command that opens a tracked file by
-spawning `openbridge open <path>`.
-
-Outside a workspace (no `OPENBRIDGE_*` environment) the command fails with a
-clear error.
+Outside a workspace (without `OPENBRIDGE_SOCKET` or `OPENBRIDGE_EDITOR_PANE`)
+the tool fails with a clear error. It does not track or select files; Phase 5
+adds only in-memory changed/read-file tracking and selection.
 
 Files are **never opened automatically**.
 
@@ -240,8 +233,9 @@ Files are **never opened automatically**.
 
 # Configuration
 
-None. The MVP has no configuration files; workspace identity is derived at
-`up` time and carried by environment variables.
+OpenBridge owns no workspace or state configuration files; workspace identity
+is derived at `up` time and carried by environment variables. OpenCode loads the
+local plugin through the repository's `opencode.json` registration.
 
 ---
 
@@ -263,7 +257,7 @@ Not part of the MVP.
 - `openbridge doctor` / `openbridge status`
 - `openbridge down` and worktree cleanup
 - `openbridge files` / `openbridge open-last` in the shell
-- configuration file
+- OpenBridge-owned configuration file
 - Telescope integration
 - fzf integration
 - Session history
@@ -290,5 +284,8 @@ openbridge up <name>
 
 The workspace must provide the editor and shell windows, final-process
 workspace environment, safe optional worktree reuse, and repeat attach behavior
-without configuration or persistent state. File opening and OpenCode plugin
-behavior remain later-phase work.
+without OpenBridge-owned workspace configuration or persistent state. OpenCode
+must explicitly open a requested file with `openbridge_open({ path, line? })`
+through the nvim/tmux adapters, without routing through an `openbridge`
+executable in `PATH`; files never open automatically. Phase 5 changed/read-file
+tracking and selection remain later work.

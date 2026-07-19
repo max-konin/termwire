@@ -1,31 +1,41 @@
 # @openbridge/opencode-plugin
 
-A lightweight OpenCode plugin. Its job is to track the files OpenCode touches
-during the current session and let the user open them in the workspace's
-Neovim with one action.
+A lightweight OpenCode plugin that explicitly opens a requested file in the
+current workspace's Neovim and focuses the editor pane.
 
 ## Why it exists
 
-Without it, the user would have to manually hunt for the files the agent
-edited. The plugin listens to OpenCode events and remembers touched files —
-**in memory only**, for the lifetime of the session.
+It gives OpenCode a workspace-aware file-opening tool without requiring an
+`openbridge` executable in `PATH`.
 
 ## Responsibilities
 
-- observe when OpenCode edits and reads files
-- keep the set of touched files in memory (nothing is written to disk)
-- expose a command to OpenCode that opens a tracked file
+- expose `openbridge_open({ path, line? })`, where `path` is required and
+  `line` is an optional positive 1-based integer
+- resolve paths from the OpenCode tool-call directory
+- read inherited `OPENBRIDGE_SOCKET` and `OPENBRIDGE_EDITOR_PANE`
+- compose `@openbridge/nvim` and `@openbridge/tmux` directly to open and focus
 
 ## How it opens files
 
-By spawning `openbridge open <path>`. The plugin runs inside the OpenCode
-process, which inherits the workspace environment (`OPENBRIDGE_SOCKET`, …)
-from its tmux pane — so the spawned command always reaches the Neovim of the
-same session. Opening is always an explicit user action; files are never
-opened automatically.
+The plugin runs inside the OpenCode process and uses its inherited workspace
+environment. It calls the nvim and tmux adapters directly, so it has no CLI or
+`PATH` requirement. Opening is always an explicit tool invocation; files are
+never opened automatically.
+
+Phase 5 will add only in-memory changed/read-file tracking and selection; it is
+not implemented yet.
+
+## Local configuration
+
+Load the local TypeScript entry in `opencode.json`:
+
+```json
+{ "plugin": ["./packages/opencode-plugin/src/index.ts"] }
+```
 
 ## Design principle
 
-Keep as little logic as possible in the plugin. It depends only on the
-OpenCode plugin API — not on any other openbridge package. The only contract
-with the CLI is the `openbridge open` command in `PATH`.
+Keep workspace routing in the plugin and adapters. Its direct dependencies are
+`@opencode-ai/plugin`, `@openbridge/nvim`, and `@openbridge/tmux`; the CLI
+owns `openbridge up` only.

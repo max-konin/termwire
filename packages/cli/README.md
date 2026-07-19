@@ -7,8 +7,8 @@ workspace identity lives in environment variables set by `openbridge up <name>`.
 ## Why it exists
 
 This is the tool that removes manual tmux/editor setup: bring up a stateless
-workspace with a single command. File opening is planned for a later phase and
-is not currently implemented.
+workspace with a single command. The CLI owns `up <name>` only; file opening is
+the explicit `openbridge_open({ path, line? })` OpenCode plugin tool.
 
 ## Commands
 
@@ -29,6 +29,8 @@ is not currently implemented.
   `-w` uses the workspace name; an explicit worktree value selects its branch
   and sibling directory while the session name stays `<project>-<name>`.
 - There are no config files or persistent state.
+- The CLI has no shell-facing `open` command and does not need to be in `PATH`
+  for the plugin: the plugin composes the nvim and tmux adapters directly.
 
 ## Dependencies
 

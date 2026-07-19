@@ -16,14 +16,15 @@
 - `@openbridge/cli` owns orchestration and may depend on the tmux and Neovim adapters.
 - `@openbridge/tmux` and `@openbridge/nvim` are thin adapters; keep them unaware of OpenCode and
   workspace orchestration.
-- `@openbridge/opencode-plugin` is still an `export {}` stub; do not treat its README or planned
-  `openbridge open <path>` contract as implemented.
+- `@openbridge/opencode-plugin` owns explicit `openbridge_open({ path, line? })` execution and may
+  depend on the tmux and Neovim adapters; it does not invoke a CLI executable.
 
 ## Current scope and gotchas
 
 - Treat package READMEs, `PDR.md`, and `ROADMAP.md` as design intent, not implemented behavior.
-- The CLI currently registers only `up <name>` (`-w/--worktree`); `open`, `doctor`, `status`,
-  `files`, `open-last`, config files, and persistence are not implemented.
+- The CLI currently owns only `up <name>` (`-w/--worktree`); there is no shell-facing `open`
+  command. File opening is the explicit OpenCode plugin tool; `doctor`, `status`, `files`,
+  `open-last`, config files, and persistence are not implemented.
 - Workspace identity is stateless and environment-based:
   `OPENBRIDGE_SESSION`, `OPENBRIDGE_SOCKET`, and `OPENBRIDGE_EDITOR_PANE`.
 - Keep adapters testable through injectable `exec`; tests must not require real tmux or Neovim
