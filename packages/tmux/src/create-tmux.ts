@@ -1,7 +1,7 @@
 import { attach } from "./client";
-import { selectPane, sendKeys, splitPane } from "./pane";
+import { respawnPane, selectPane, sendKeys, splitPane } from "./pane";
 import { bunExec, type Exec } from "./process";
-import { hasSession, newSession } from "./session";
+import { hasSession, killSession, newSession, setEnvironment } from "./session";
 import { newWindow, selectWindow } from "./window";
 
 export interface CreateTmuxOptions {
@@ -14,6 +14,10 @@ export function createTmux({ exec = bunExec, env = process.env }: CreateTmuxOpti
     hasSession: (session: string) => hasSession(exec, session),
     newSession: (options: Parameters<typeof newSession>[1]) => newSession(exec, options),
     newWindow: (options: Parameters<typeof newWindow>[1]) => newWindow(exec, options),
+    setEnvironment: (session: string, key: string, value: string) =>
+      setEnvironment(exec, session, key, value),
+    killSession: (session: string) => killSession(exec, session),
+    respawnPane: (options: Parameters<typeof respawnPane>[1]) => respawnPane(exec, options),
     splitPane: (options: Parameters<typeof splitPane>[1]) => splitPane(exec, options),
     sendKeys: (target: string, keys: readonly string[], options?: Parameters<typeof sendKeys>[3]) =>
       sendKeys(exec, target, keys, options),

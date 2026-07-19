@@ -18,7 +18,7 @@ describe("attach", () => {
 
     const tmux = createTmux({ exec, env: {} });
 
-    await expect(tmux.attach("project")).resolves.toBeUndefined();
+    expect(await tmux.attach("project")).toBeUndefined();
     expect(calls).toEqual([
       { argv: ["tmux", "attach-session", "-t", "=project"], options: { stdio: "inherit" } },
     ]);
@@ -31,7 +31,7 @@ describe("attach", () => {
       return result(0);
     };
 
-    await expect(attach(exec, {}, "project")).resolves.toBeUndefined();
+    expect(await attach(exec, {}, "project")).toBeUndefined();
     expect(calls).toEqual([
       { argv: ["tmux", "attach-session", "-t", "=project"], options: { stdio: "inherit" } },
     ]);
@@ -56,7 +56,7 @@ describe("attach", () => {
 
     const tmux = createTmux({ exec, env: { TMUX: "/tmp/tmux-501/default,1,0" } });
 
-    await expect(tmux.attach("project")).resolves.toBeUndefined();
+    expect(await tmux.attach("project")).toBeUndefined();
     expect(calls).toEqual([
       { argv: ["tmux", "switch-client", "-t", "=project"], options: undefined },
     ]);
@@ -69,7 +69,7 @@ describe("attach", () => {
       return result(0);
     };
 
-    await expect(attach(exec, { TMUX: "" }, "project")).resolves.toBeUndefined();
+    expect(await attach(exec, { TMUX: "" }, "project")).toBeUndefined();
     expect(calls).toEqual([
       { argv: ["tmux", "attach-session", "-t", "=project"], options: { stdio: "inherit" } },
     ]);

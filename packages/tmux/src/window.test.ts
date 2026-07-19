@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import type { Exec, ExecResult } from "./process";
 import { ValidationError } from "./validation";
 import { newWindow, selectWindow } from "./window";
@@ -11,35 +11,36 @@ const result = (exitCode: number, stdout = "", stderr = ""): ExecResult => ({
 
 describe("newWindow", () => {
   test("creates a detached window against an exact session target", async () => {
-    const calls: string[][] = [];
-    const exec: Exec = async (argv) => {
-      calls.push([...argv]);
-      return result(0, "@2\t%3\n");
-    };
+    const exec = mock(async (..._args: Parameters<Exec>) => result(0, "@2\t%3\n"));
 
-    await expect(
-      newWindow(exec, {
+    expect(
+      await newWindow(exec, {
         target: "project",
+        name: "shell",
         cwd: "/tmp/project dir",
         command: ["true"],
         environment: { WINDOW_ROLE: "workspace", OMITTED: undefined },
       }),
-    ).resolves.toEqual({ windowId: "@2", paneId: "%3" });
-    expect(calls).toEqual([
+    ).toEqual({ windowId: "@2", paneId: "%3" });
+    expect(exec.mock.calls).toEqual([
       [
-        "tmux",
-        "new-window",
-        "-d",
-        "-t",
-        "=project",
-        "-P",
-        "-F",
-        "#{window_id}\t#{pane_id}",
-        "-c",
-        "/tmp/project dir",
-        "-e",
-        "WINDOW_ROLE=workspace",
-        "true",
+        [
+          "tmux",
+          "new-window",
+          "-d",
+          "-t",
+          "=project",
+          "-n",
+          "shell",
+          "-P",
+          "-F",
+          "#{window_id}\t#{pane_id}",
+          "-c",
+          "/tmp/project dir",
+          "-e",
+          "WINDOW_ROLE=workspace",
+          "true",
+        ],
       ],
     ]);
   });
@@ -51,7 +52,7 @@ describe("newWindow", () => {
       return result(0, "@2\t%3\n");
     };
 
-    await expect(newWindow(exec, { target: "project" })).resolves.toEqual({
+    expect(await newWindow(exec, { target: "project" })).toEqual({
       windowId: "@2",
       paneId: "%3",
     });
@@ -62,17 +63,14 @@ describe("newWindow", () => {
 
   test.each([
     [{ target: "" }, "target"],
+    [{ target: "project", name: "" }, "name"],
     [{ target: "project", command: [] }, "command"],
     [{ target: "project", command: [""] }, "command"],
   ] as const)("rejects invalid input before execution", async (options, field) => {
-    const calls: string[][] = [];
-    const exec: Exec = async (argv) => {
-      calls.push([...argv]);
-      return result(0);
-    };
+    const exec = mock(async (..._args: Parameters<Exec>) => result(0));
 
     await expect(newWindow(exec, options)).rejects.toMatchObject({ field });
-    expect(calls).toEqual([]);
+    expect(exec).not.toHaveBeenCalled();
   });
 
   test("reports a nonzero tmux exit", async () => {
@@ -100,7 +98,7 @@ describe("selectWindow", () => {
       return result(0);
     };
 
-    await expect(selectWindow(exec, "@2")).resolves.toBeUndefined();
+    expect(await selectWindow(exec, "@2")).toBeUndefined();
     expect(calls).toEqual([["tmux", "select-window", "-t", "@2"]]);
   });
 

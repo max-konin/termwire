@@ -17,7 +17,12 @@ export class CommandError extends Error {
     readonly stderr: string,
     options?: ErrorOptions,
   ) {
-    super(`Command failed: ${argv.join(" ")}`, options);
+    const status = exitCode === null ? "unknown" : String(exitCode);
+    const details = stderr.trim();
+    super(
+      `Command failed (exit ${status}): ${argv.join(" ")}${details ? `: ${details}` : ""}`,
+      options,
+    );
     this.name = "CommandError";
   }
 

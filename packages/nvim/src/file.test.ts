@@ -16,7 +16,7 @@ describe("openFile", () => {
       return result(0);
     };
 
-    await expect(openFile(exec, "/tmp/editor.sock", "/tmp/a file $x.ts")).resolves.toBeUndefined();
+    expect(await openFile(exec, "/tmp/editor.sock", "/tmp/a file $x.ts")).toBeUndefined();
     expect(calls).toEqual([
       ["nvim", "--headless", "--server", "/tmp/editor.sock", "--remote", "/tmp/a file $x.ts"],
     ]);
@@ -27,7 +27,7 @@ describe("openFile", () => {
     const nvim = createNvim({ exec });
 
     expect(nvim).toHaveProperty("openFile");
-    await expect(nvim.openFile("/tmp/editor.sock", "/tmp/file.ts")).resolves.toBeUndefined();
+    expect(await nvim.openFile("/tmp/editor.sock", "/tmp/file.ts")).toBeUndefined();
   });
 
   test("validates the file path before execution", async () => {
@@ -58,7 +58,7 @@ describe("openFile", () => {
       return result(0);
     };
 
-    await expect(openFile(exec, "/tmp/editor.sock", "/tmp/file.ts", 42)).resolves.toBeUndefined();
+    expect(await openFile(exec, "/tmp/editor.sock", "/tmp/file.ts", 42)).toBeUndefined();
     expect(calls).toEqual([
       ["nvim", "--headless", "--server", "/tmp/editor.sock", "--remote", "/tmp/file.ts"],
       ["nvim", "--headless", "--server", "/tmp/editor.sock", "--remote-send", "<C-\\><C-N>42G"],

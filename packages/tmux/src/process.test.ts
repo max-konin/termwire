@@ -37,10 +37,16 @@ describe("CommandError.from", () => {
       stderr: "bad target",
     });
   });
+
+  test("includes the failed command, exit status, and stderr in its message", () => {
+    const error = CommandError.from(["tmux", "new-session"], result(2, "", "duplicate session"));
+
+    expect(error.message).toBe("Command failed (exit 2): tmux new-session: duplicate session");
+  });
 });
 
 describe("bunExec", () => {
   test("captures stdout, stderr, and exit code", async () => {
-    await expect(bunExec(["bun", "-e", "console.log('ok')"])).resolves.toEqual(result(0, "ok\n"));
+    expect(await bunExec(["bun", "-e", "console.log('ok')"])).toEqual(result(0, "ok\n"));
   });
 });

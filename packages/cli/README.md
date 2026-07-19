@@ -2,35 +2,36 @@
 
 The project's main entry point — the `openbridge` command. Orchestrates the
 other packages. Fully **stateless**: no config files, no state files —
-workspace identity lives in environment variables set by `openbridge up`.
+workspace identity lives in environment variables set by `openbridge up <name>`.
 
 ## Why it exists
 
-This is the tool that removes the manual setup described in the PDR: bring up
-a tmux workspace with a single command, then open files in the running editor
-from anywhere inside the workspace.
+This is the tool that removes manual tmux/editor setup: bring up a stateless
+workspace with a single command. File opening is planned for a later phase and
+is not currently implemented.
 
 ## Commands
 
-| Command                       | What it does                                       |
-| ----------------------------- | -------------------------------------------------- |
-| `openbridge up`               | create (or attach to) a session in the current dir |
-| `openbridge up -w <name>`     | create a git worktree and a session inside it      |
-| `openbridge open <f[:line]>`  | open a file in this workspace's Neovim             |
+| Command                                      | What it does |
+| -------------------------------------------- | ------------ |
+| `openbridge up <name>`                       | create or attach to `<project>-<name>` in the current directory |
+| `openbridge up <name> -w`                    | create or reuse sibling worktree `<project>-<name>` on branch `<name>` |
+| `openbridge up <name> --worktree <wt-name>`  | create or reuse the explicit sibling worktree while retaining session `<project>-<name>` |
 
 ## How it works
 
-- `up` generates a unique session id, starts the tmux layout (Neovim,
-  OpenCode, shell), and creates every pane with `OPENBRIDGE_SESSION`,
-  `OPENBRIDGE_SOCKET`, and `OPENBRIDGE_EDITOR_PANE` in the environment.
-- `open` reads those variables (inherited by every process inside the
-  workspace), opens the file via `@openbridge/nvim`, and focuses the editor
-  pane via `@openbridge/tmux`. Outside a workspace it fails with a clear
-  error.
-- Multiple sessions of one project (via worktrees) never interfere: each has
-  its own socket and session name.
+- `up <name>` creates `editor` (`nvim --listen <socket>`) and free `shell`
+  windows. Final processes receive `OPENBRIDGE_SESSION`, `OPENBRIDGE_SOCKET`,
+  and `OPENBRIDGE_EDITOR_PANE`.
+- OpenCode is not started automatically. Users may start it in the shell and
+  reshape the workspace with tmux.
+- Existing sessions attach immediately without worktree mutation. Bare
+  `-w` uses the workspace name; an explicit worktree value selects its branch
+  and sibling directory while the session name stays `<project>-<name>`.
+- There are no config files or persistent state.
 
 ## Dependencies
 
-`@openbridge/tmux` and `@openbridge/nvim` — thin adapters over the binaries.
-Nothing else.
+Commander 15 is the CLI runtime dependency for parsing `up`. `@openbridge/tmux`
+and `@openbridge/nvim` are thin adapters over their binaries; the CLI owns
+workspace policy and orchestration.

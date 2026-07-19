@@ -14,6 +14,6 @@ describe("createNvim", () => {
 
     expect(nvim).toHaveProperty("isRunning");
     expect(nvim).toHaveProperty("openFile");
-    await expect(nvim.isRunning("/tmp/editor.sock")).resolves.toBe(true);
+    expect(await nvim.isRunning("/tmp/editor.sock")).toBe(true);
   });
 });

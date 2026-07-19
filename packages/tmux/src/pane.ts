@@ -11,6 +11,29 @@ export interface SplitPaneOptions {
   environment?: Record<string, string | undefined>;
 }
 
+export interface RespawnPaneOptions {
+  target: string;
+  cwd?: string;
+  command: readonly string[];
+  environment?: Record<string, string | undefined>;
+}
+
+export async function respawnPane(exec: Exec, options: RespawnPaneOptions): Promise<void> {
+  assertNotEmpty("target", options.target);
+  if (options.cwd !== undefined) assertNotEmpty("cwd", options.cwd);
+
+  const command = ["tmux", "respawn-pane", "-k", "-t", options.target];
+  if (options.cwd !== undefined) command.push("-c", options.cwd);
+  appendEnvironment(command, options.environment);
+  appendCommand(command, options.command);
+
+  const execution = await execute(exec, command);
+
+  if (execution.exitCode !== 0) {
+    throw CommandError.from(command, execution);
+  }
+}
+
 export async function splitPane(exec: Exec, options: SplitPaneOptions): Promise<string> {
   assertNotEmpty("target", options.target);
   if (options.cwd !== undefined) assertNotEmpty("cwd", options.cwd);

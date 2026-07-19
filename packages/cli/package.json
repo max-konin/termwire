@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@openbridge/nvim": "workspace:*",
-    "@openbridge/tmux": "workspace:*"
+    "@openbridge/tmux": "workspace:*",
+    "commander": "^15.0.0"
   }
 }

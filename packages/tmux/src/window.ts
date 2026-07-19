@@ -4,6 +4,7 @@ import { assertNotEmpty } from "./validation";
 
 export interface NewWindowOptions {
   target: string;
+  name?: string;
   cwd?: string;
   command?: readonly string[];
   environment?: Record<string, string | undefined>;
@@ -11,6 +12,7 @@ export interface NewWindowOptions {
 
 export async function newWindow(exec: Exec, options: NewWindowOptions): Promise<WindowPaneIds> {
   assertNotEmpty("target", options.target);
+  if (options.name !== undefined) assertNotEmpty("name", options.name);
   if (options.cwd !== undefined) assertNotEmpty("cwd", options.cwd);
 
   const command = [
@@ -19,6 +21,7 @@ export async function newWindow(exec: Exec, options: NewWindowOptions): Promise<
     "-d",
     "-t",
     `=${options.target}`,
+    ...(options.name === undefined ? [] : ["-n", options.name]),
     "-P",
     "-F",
     "#{window_id}\t#{pane_id}",

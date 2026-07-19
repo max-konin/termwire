@@ -12,7 +12,7 @@ describe("isRunning", () => {
   test("can be called directly with an executor", async () => {
     const exec: Exec = async () => result(0, "1\n");
 
-    await expect(isRunning(exec, "/tmp/editor.sock")).resolves.toBe(true);
+    expect(await isRunning(exec, "/tmp/editor.sock")).toBe(true);
   });
 
   test("uses the remote expression probe for a responsive server", async () => {
@@ -34,7 +34,7 @@ describe("isRunning", () => {
       const exec: Exec = async () => execution;
       const nvim = createNvim({ exec });
 
-      await expect(nvim.isRunning("/tmp/editor.sock")).resolves.toBe(false);
+      expect(await nvim.isRunning("/tmp/editor.sock")).toBe(false);
     }
   });
 

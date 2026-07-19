@@ -1,6 +1,6 @@
-import { describe, expect, test } from "bun:test";
-import { selectPane, sendKeys, splitPane } from "./pane";
-import type { Exec, ExecResult } from "./process";
+import { describe, expect, mock, test } from "bun:test";
+import { respawnPane, selectPane, sendKeys, splitPane } from "./pane";
+import { CommandError, type Exec, type ExecResult } from "./process";
 import { ValidationError } from "./validation";
 
 const result = (exitCode: number, stdout = "", stderr = ""): ExecResult => ({
@@ -17,8 +17,8 @@ describe("splitPane", () => {
       return result(0, "%2\n");
     };
 
-    await expect(
-      splitPane(exec, {
+    expect(
+      await splitPane(exec, {
         target: "%1",
         direction: "horizontal",
         sizePercent: 40,
@@ -26,7 +26,7 @@ describe("splitPane", () => {
         command: ["true"],
         environment: { PANE_ROLE: "secondary" },
       }),
-    ).resolves.toBe("%2");
+    ).toBe("%2");
     expect(calls).toEqual([
       [
         "tmux",
@@ -56,14 +56,14 @@ describe("splitPane", () => {
       return result(0, "%2\n");
     };
 
-    await expect(
-      splitPane(exec, {
+    expect(
+      await splitPane(exec, {
         target: "%1",
         direction: "vertical",
         sizePercent: 50,
         command: ["true"],
       }),
-    ).resolves.toBe("%2");
+    ).toBe("%2");
     expect(calls).toEqual([
       [
         "tmux",
@@ -89,13 +89,13 @@ describe("splitPane", () => {
       return result(0, "%2\n");
     };
 
-    await expect(
-      splitPane(exec, {
+    expect(
+      await splitPane(exec, {
         target: "%1",
         direction: "vertical",
         command: ["true"],
       }),
-    ).resolves.toBe("%2");
+    ).toBe("%2");
     expect(calls).toEqual([
       ["tmux", "split-window", "-d", "-t", "%1", "-v", "-P", "-F", "#{pane_id}", "true"],
     ]);
@@ -130,7 +130,7 @@ describe("sendKeys", () => {
       return result(0);
     };
 
-    await expect(sendKeys(exec, "%1", ["hello world"], { literal: true })).resolves.toBeUndefined();
+    expect(await sendKeys(exec, "%1", ["hello world"], { literal: true })).toBeUndefined();
     expect(calls).toEqual([["tmux", "send-keys", "-t", "%1", "-l", "--", "hello world"]]);
   });
 
@@ -141,7 +141,7 @@ describe("sendKeys", () => {
       return result(0);
     };
 
-    await expect(sendKeys(exec, "%1", ["C-c", "Enter"])).resolves.toBeUndefined();
+    expect(await sendKeys(exec, "%1", ["C-c", "Enter"])).toBeUndefined();
     expect(calls).toEqual([["tmux", "send-keys", "-t", "%1", "C-c", "Enter"]]);
   });
 
@@ -178,7 +178,7 @@ describe("selectPane", () => {
       return result(0);
     };
 
-    await expect(selectPane(exec, "%1")).resolves.toBeUndefined();
+    expect(await selectPane(exec, "%1")).toBeUndefined();
     expect(calls).toEqual([["tmux", "select-pane", "-t", "%1"]]);
   });
 
@@ -190,5 +190,58 @@ describe("selectPane", () => {
       exitCode: 2,
       stderr: "selection failed",
     });
+  });
+});
+
+describe("respawnPane", () => {
+  test("replaces a pane process with its environment and command", async () => {
+    const exec = mock(async (..._args: Parameters<Exec>) => result(0));
+
+    expect(
+      await respawnPane(exec, {
+        target: "%3",
+        cwd: "/repo",
+        environment: { OPENBRIDGE_EDITOR_PANE: "%3" },
+        command: ["nvim", "--listen", "/tmp/demo.sock"],
+      }),
+    ).toBeUndefined();
+    expect(exec.mock.calls).toEqual([
+      [
+        [
+          "tmux",
+          "respawn-pane",
+          "-k",
+          "-t",
+          "%3",
+          "-c",
+          "/repo",
+          "-e",
+          "OPENBRIDGE_EDITOR_PANE=%3",
+          "nvim",
+          "--listen",
+          "/tmp/demo.sock",
+        ],
+      ],
+    ]);
+  });
+
+  test.each([
+    [{ target: "", command: ["nvim"] }, "target"],
+    [{ target: "%3", cwd: "", command: ["nvim"] }, "cwd"],
+    [{ target: "%3", command: [] }, "command"],
+    [{ target: "%3", command: [""] }, "command"],
+  ] as const)("rejects invalid input before execution", async (options, field) => {
+    const exec = mock(async (..._args: Parameters<Exec>) => result(0));
+
+    await expect(respawnPane(exec, options)).rejects.toMatchObject({ field });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  test("turns a nonzero result into CommandError", async () => {
+    const exec = mock(async (..._args: Parameters<Exec>) => result(2, "", "respawn failed"));
+
+    await expect(respawnPane(exec, { target: "%3", command: ["nvim"] })).rejects.toBeInstanceOf(
+      CommandError,
+    );
   });
 });

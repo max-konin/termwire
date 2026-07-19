@@ -88,15 +88,16 @@ is discovered from environment variables, never from files on disk.
 Responsibilities:
 
 - create workspaces (optionally in a new git worktree)
-- open files in the running editor
 - coordinate other packages
+
+`openbridge open` is planned for a later phase; it is not currently implemented.
 
 Commands:
 
 ```bash
-openbridge up               # create (or attach to) a session in the current directory
-openbridge up -w <name>     # create a git worktree <name> and a session inside it
-openbridge open <file[:line]>
+openbridge up <name>                         # create or attach to <project>-<name>
+openbridge up <name> -w                       # use worktree name <name>
+openbridge up <name> --worktree <wt-name>     # use explicit worktree name <wt-name>
 ```
 
 ---
@@ -152,24 +153,21 @@ The plugin should contain as little logic as possible.
 Running
 
 ```bash
-openbridge up
+openbridge up dev
 ```
 
-creates a tmux session similar to:
+creates or attaches to the tmux session `<project>-dev`. A newly created
+workspace has two default tmux windows:
 
 ```text
-┌──────────────────────┬──────────────────────┐
-│                      │                      │
-│       Neovim         │       OpenCode       │
-│                      │                      │
-├──────────────────────┴──────────────────────┤
-│                 Shell                       │
-└─────────────────────────────────────────────┘
+session
+├── editor: nvim --listen <socket>
+└── shell:  user's default shell
 ```
 
 Each session gets a unique name and a unique Neovim socket
-(`/tmp/openbridge/<session>.sock`). Every pane is created with the workspace
-environment:
+(`/tmp/openbridge/<session>.sock`). Every final workspace process receives the
+workspace environment:
 
 | Variable                 | Meaning                         |
 | ------------------------ | ------------------------------- |
@@ -177,9 +175,10 @@ environment:
 | `OPENBRIDGE_SOCKET`      | Neovim RPC socket path          |
 | `OPENBRIDGE_EDITOR_PANE` | tmux pane id of the editor pane |
 
-Everything running inside the workspace (shell, OpenCode, the plugin)
-inherits these variables — that is how `openbridge open` always reaches the
-right editor, even with multiple sessions of the same project.
+OpenCode is not started automatically. The user may start it from the shell
+and reshape windows and panes with ordinary tmux commands. OpenBridge only
+requires the recorded Neovim editor pane; it owns no layout configuration or
+persistent workspace state.
 
 ---
 
@@ -192,15 +191,17 @@ Create a fully configured workspace.
 Includes:
 
 - tmux session
-- editor pane
-- OpenCode pane
-- shell pane
+- `editor` window running `nvim --listen <socket>`
+- free `shell` window
 
-`openbridge up` works in the current directory; running it again attaches to
-the existing session. `openbridge up -w <name>` creates a git worktree
-(directory `../<project>-<name>`, branch `<name>`) and starts an independent
-session inside it — this is how several agents can work on one project in
-parallel. Removing a worktree is manual (`git worktree remove`) in the MVP.
+`openbridge up <name>` works in the current directory and always addresses
+`<project>-<name>`; running it again attaches immediately to an existing
+session without worktree validation or mutation. With bare `-w` or
+`--worktree`, the worktree name is `<name>`; an explicit optional value chooses
+the worktree name. A matching registered worktree is safely reused; conflicts
+fail clearly. Worktrees are siblings named `../<project>-<worktree-name>` on
+the matching branch. Removing a worktree is manual (`git worktree remove`) in
+the MVP.
 
 ---
 
@@ -282,11 +283,12 @@ A developer should be able to:
 2. Run:
 
 ```bash
-openbridge up
+openbridge up <name>
 ```
 
 1. Start coding immediately.
 
-Opening files modified by OpenCode should require no manual searching or
-editor switching, and several sessions of the same project must not interfere
-with each other.
+The workspace must provide the editor and shell windows, final-process
+workspace environment, safe optional worktree reuse, and repeat attach behavior
+without configuration or persistent state. File opening and OpenCode plugin
+behavior remain later-phase work.

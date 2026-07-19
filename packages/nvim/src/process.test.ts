@@ -12,7 +12,7 @@ describe("execute", () => {
     const expected = result(0, "ok");
     const exec: Exec = async () => expected;
 
-    await expect(execute(exec, ["nvim", "--version"])).resolves.toBe(expected);
+    expect(await execute(exec, ["nvim", "--version"])).toBe(expected);
   });
 
   test("wraps launch failures with a null exit code and preserved cause", async () => {
@@ -41,8 +41,8 @@ describe("CommandError", () => {
 
 describe("bunExec", () => {
   test("captures stdout, stderr, and exit code", async () => {
-    await expect(
-      bunExec(["bun", "-e", "console.log('ok'); console.error('warn')"]),
-    ).resolves.toEqual(result(0, "ok\n", "warn\n"));
+    expect(await bunExec(["bun", "-e", "console.log('ok'); console.error('warn')"])).toEqual(
+      result(0, "ok\n", "warn\n"),
+    );
   });
 });
