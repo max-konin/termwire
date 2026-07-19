@@ -1,28 +1,15 @@
 # @openbridge/tmux
 
-A thin wrapper around the `tmux` binary. Responsible **only** for tmux
-operations — it knows nothing about OpenCode, Neovim, or workspace logic.
+A thin, typed adapter for tmux 3.2. Create it with `createTmux({ exec, env })`; production uses
+`Bun.spawn`, while tests can inject a fake `exec` without requiring a tmux binary.
 
-## Why it exists
+## API
 
-`openbridge up` needs to programmatically spin up a tmux session with a ready
-layout (panes for Neovim, OpenCode, and a shell). This package encapsulates
-every `tmux ...` invocation so the rest of the code works against a typed API
-instead of hand-building command strings.
+The factory exposes `hasSession`, `newSession`, `newWindow`, `splitPane`, `sendKeys`,
+`selectWindow`, `selectPane`, and `attach`. Attach uses `attach-session` outside tmux and
+`switch-client` when `TMUX` is set.
 
-## Responsibilities
+## Boundary
 
-- create sessions
-- create windows and panes
-- send commands to panes (`send-keys`)
-- switch focus between panes
-- detect existing sessions
-- attach to a session (`attach-session` outside tmux / `switch-client` inside)
-
-## Design principle
-
-All calls go through an injectable `exec` function. The real implementation
-uses `Bun.spawn`; tests inject a fake — so the package is testable without
-`tmux` installed.
-
-> No OpenCode logic belongs here.
+This package owns tmux commands only. The CLI owns runtime layout interpretation and editor roles;
+no OpenCode, workspace orchestration, or Neovim logic belongs here.
