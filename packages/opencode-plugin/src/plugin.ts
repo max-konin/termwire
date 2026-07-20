@@ -1,9 +1,9 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import type { OpenFileHandler } from "./open";
-import { createOpenbridgeOpenTool } from "./tool";
+import { createTermwireOpenTool } from "./tool";
 
-export function createOpenbridgePlugin(openFile: OpenFileHandler): Plugin {
+export function createTermwirePlugin(openFile: OpenFileHandler): Plugin {
   return async () => ({
-    tool: { openbridge_open: createOpenbridgeOpenTool(openFile) },
+    tool: { termwire_open: createTermwireOpenTool(openFile) },
   });
 }

@@ -35,12 +35,12 @@ export function createOpenFileHandler({
 }: CreateOpenFileHandlerOptions): OpenFileHandler {
   return async ({ directory, path, line }) => {
     const env = getEnv();
-    const socket = env.OPENBRIDGE_SOCKET?.trim();
-    const editorPane = env.OPENBRIDGE_EDITOR_PANE?.trim();
+    const socket = env.TERMWIRE_SOCKET?.trim();
+    const editorPane = env.TERMWIRE_EDITOR_PANE?.trim();
     const absolutePath = resolve(directory, path);
 
     if (!socket || !editorPane) {
-      throw new Error("not inside an openbridge workspace");
+      throw new Error("not inside an termwire workspace");
     }
 
     if (!(await nvim.isRunning(socket))) {

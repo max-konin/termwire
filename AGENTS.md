@@ -7,16 +7,16 @@
   `bun test`.
 - Run one test file with `bun test <path>`; tests use Bun's native runner.
 - There is no root build or typecheck script. Use `bunx tsc --noEmit` for an explicit type check.
-- Run the CLI directly with `bun packages/cli/bin/openbridge.ts`; the root README's
+- Run the CLI directly with `bun packages/cli/bin/termwire.ts`; the root README's
   `bun run index.ts` command is stale.
 
 ## Package boundaries
 
 - Workspaces live under `packages/*`.
-- `@openbridge/cli` owns orchestration and may depend on the tmux and Neovim adapters.
-- `@openbridge/tmux` and `@openbridge/nvim` are thin adapters; keep them unaware of OpenCode and
+- `@termwire/cli` owns orchestration and may depend on the tmux and Neovim adapters.
+- `@termwire/tmux` and `@termwire/nvim` are thin adapters; keep them unaware of OpenCode and
   workspace orchestration.
-- `@openbridge/opencode-plugin` owns explicit `openbridge_open({ path, line? })` execution and may
+- `@termwire/opencode-plugin` owns explicit `termwire_open({ path, line? })` execution and may
   depend on the tmux and Neovim adapters; it does not invoke a CLI executable.
 
 ## Current scope and gotchas
@@ -26,7 +26,7 @@
   command. File opening is the explicit OpenCode plugin tool; `doctor`, `status`, `files`,
   `open-last`, config files, and persistence are not implemented.
 - Workspace identity is stateless and environment-based:
-  `OPENBRIDGE_SESSION`, `OPENBRIDGE_SOCKET`, and `OPENBRIDGE_EDITOR_PANE`.
+  `TERMWIRE_SESSION`, `TERMWIRE_SOCKET`, and `TERMWIRE_EDITOR_PANE`.
 - Keep adapters testable through injectable `exec`; tests must not require real tmux or Neovim
   binaries.
 - Neovim integration must use built-in remote RPC (`nvim --server <socket> --remote*`); do not add

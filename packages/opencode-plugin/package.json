@@ -1,15 +1,41 @@
 {
-  "name": "@openbridge/opencode-plugin",
+  "name": "@termwire/opencode-plugin",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
-  "main": "src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/max-konin/termwire.git",
+    "directory": "packages/opencode-plugin"
+  },
+  "homepage": "https://github.com/max-konin/termwire#readme",
+  "bugs": {
+    "url": "https://github.com/max-konin/termwire/issues"
   },
   "dependencies": {
     "@opencode-ai/plugin": "1.17.20",
-    "@openbridge/nvim": "workspace:*",
-    "@openbridge/tmux": "workspace:*"
+    "@termwire/nvim": "workspace:*",
+    "@termwire/tmux": "workspace:*"
   }
 }

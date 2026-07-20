@@ -21,6 +21,7 @@ coverage
 
 # Output of 'npm pack' / 'bun pm pack'
 *.tgz
+packages/*/dist/
 
 # IDEs
 .idea

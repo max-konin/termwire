@@ -1,11 +1,21 @@
-# @openbridge/nvim
+# @termwire/nvim
+
+```bash
+bun add @termwire/nvim
+```
+
+```ts
+import { createNvim } from "@termwire/nvim";
+
+const nvim = createNvim();
+```
 
 A package for interacting with an **already running** Neovim instance.
 Responsible only for talking to the editor — with no Neovim-side plugins.
 
 ## Why it exists
 
-When `openbridge open` targets a file, this package opens it in the Neovim
+The OpenCode plugin uses this package to open a requested file in the Neovim
 running in the workspace pane. It encapsulates communication with that editor
 over its socket.
 

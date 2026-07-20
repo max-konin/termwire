@@ -1,5 +1,5 @@
 import { expect, mock, test } from "bun:test";
-import type { createTmux } from "@openbridge/tmux";
+import type { createTmux } from "@termwire/tmux";
 import { up } from "./up";
 
 const createWorkspaceTmux = (sessionExists = false) => {
@@ -222,7 +222,7 @@ test("rejects an overlong socket identity before checking tmux", async () => {
 
   await expect(
     up(
-      { name: "n".repeat(81) },
+      { name: "n".repeat(83) },
       {
         cwd: mock<() => string>().mockReturnValue("/tmp/p"),
         findGitRoot:
@@ -329,22 +329,22 @@ test("creates the default editor and shell workspace protocol", async () => {
   );
 
   const environment = {
-    OPENBRIDGE_SESSION: "repo-dev",
-    OPENBRIDGE_SOCKET: "/tmp/openbridge/repo-dev.sock",
-    OPENBRIDGE_EDITOR_PANE: "%1",
+    TERMWIRE_SESSION: "repo-dev",
+    TERMWIRE_SOCKET: "/tmp/termwire/repo-dev.sock",
+    TERMWIRE_EDITOR_PANE: "%1",
   };
-  expect(mkdir).toHaveBeenCalledWith("/tmp/openbridge");
-  expect(removeFile).toHaveBeenCalledWith("/tmp/openbridge/repo-dev.sock");
+  expect(mkdir).toHaveBeenCalledWith("/tmp/termwire");
+  expect(removeFile).toHaveBeenCalledWith("/tmp/termwire/repo-dev.sock");
   expect(newSession).toHaveBeenCalledWith({ session: "repo-dev", name: "editor", cwd: "/repo" });
   expect(setEnvironment.mock.calls).toEqual([
-    ["repo-dev", "OPENBRIDGE_SESSION", "repo-dev"],
-    ["repo-dev", "OPENBRIDGE_SOCKET", "/tmp/openbridge/repo-dev.sock"],
-    ["repo-dev", "OPENBRIDGE_EDITOR_PANE", "%1"],
+    ["repo-dev", "TERMWIRE_SESSION", "repo-dev"],
+    ["repo-dev", "TERMWIRE_SOCKET", "/tmp/termwire/repo-dev.sock"],
+    ["repo-dev", "TERMWIRE_EDITOR_PANE", "%1"],
   ]);
   expect(respawnPane).toHaveBeenCalledWith({
     target: "%1",
     cwd: "/repo",
-    command: ["nvim", "--listen", "/tmp/openbridge/repo-dev.sock"],
+    command: ["nvim", "--listen", "/tmp/termwire/repo-dev.sock"],
     environment,
   });
   expect(newWindow).toHaveBeenCalledWith({
@@ -362,9 +362,9 @@ test("creates the default editor and shell workspace protocol", async () => {
     "mkdir",
     "removeFile",
     "newSession",
-    "setEnvironment:OPENBRIDGE_SESSION",
-    "setEnvironment:OPENBRIDGE_SOCKET",
-    "setEnvironment:OPENBRIDGE_EDITOR_PANE",
+    "setEnvironment:TERMWIRE_SESSION",
+    "setEnvironment:TERMWIRE_SOCKET",
+    "setEnvironment:TERMWIRE_EDITOR_PANE",
     "respawnPane",
     "newWindow",
     "selectWindow",

@@ -13,6 +13,12 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
+    "paths": {
+      "@termwire/tmux": ["./packages/tmux/src/index.ts"],
+      "@termwire/nvim": ["./packages/nvim/src/index.ts"],
+      "@termwire/cli": ["./packages/cli/src/index.ts"],
+      "@termwire/opencode-plugin": ["./packages/opencode-plugin/src/index.ts"]
+    },
 
     // Best practices
     "strict": true,

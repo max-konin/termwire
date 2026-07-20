@@ -1,4 +1,4 @@
-# @openbridge/opencode-plugin
+# @termwire/opencode-plugin
 
 A lightweight OpenCode plugin that explicitly opens a requested file in the
 current workspace's Neovim and focuses the editor pane.
@@ -6,15 +6,15 @@ current workspace's Neovim and focuses the editor pane.
 ## Why it exists
 
 It gives OpenCode a workspace-aware file-opening tool without requiring an
-`openbridge` executable in `PATH`.
+`termwire` executable in `PATH`.
 
 ## Responsibilities
 
-- expose `openbridge_open({ path, line? })`, where `path` is required and
+- expose `termwire_open({ path, line? })`, where `path` is required and
   `line` is an optional positive 1-based integer
 - resolve paths from the OpenCode tool-call directory
-- read inherited `OPENBRIDGE_SOCKET` and `OPENBRIDGE_EDITOR_PANE`
-- compose `@openbridge/nvim` and `@openbridge/tmux` directly to open and focus
+- read inherited `TERMWIRE_SOCKET` and `TERMWIRE_EDITOR_PANE`
+- compose `@termwire/nvim` and `@termwire/tmux` directly to open and focus
 
 ## How it opens files
 
@@ -26,9 +26,21 @@ never opened automatically.
 Phase 5 will add only in-memory changed/read-file tracking and selection; it is
 not implemented yet.
 
-## Local configuration
+## Install
 
-Load the local TypeScript entry in `opencode.json`:
+```bash
+bun add @termwire/opencode-plugin
+```
+
+Configure OpenCode with the published package:
+
+```json
+{ "plugin": ["@termwire/opencode-plugin"] }
+```
+
+## Development
+
+Load the local TypeScript entry only for source development:
 
 ```json
 { "plugin": ["./packages/opencode-plugin/src/index.ts"] }
@@ -37,5 +49,5 @@ Load the local TypeScript entry in `opencode.json`:
 ## Design principle
 
 Keep workspace routing in the plugin and adapters. Its direct dependencies are
-`@opencode-ai/plugin`, `@openbridge/nvim`, and `@openbridge/tmux`; the CLI
-owns `openbridge up` only.
+`@opencode-ai/plugin`, `@termwire/nvim`, and `@termwire/tmux`; the CLI
+owns `termwire up` only.

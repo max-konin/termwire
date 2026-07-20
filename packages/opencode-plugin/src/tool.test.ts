@@ -1,8 +1,8 @@
 import { expect, mock, test } from "bun:test";
-import { createOpenbridgeOpenTool } from "./tool";
+import { createTermwireOpenTool } from "./tool";
 
 test("requires a path and accepts only a positive integer line", () => {
-  const definition = createOpenbridgeOpenTool(mock(async () => ({ path: "/x" })));
+  const definition = createTermwireOpenTool(mock(async () => ({ path: "/x" })));
   expect(definition.args.path.safeParse("   ").success).toBe(false);
   expect(definition.args.path.safeParse(" src/app.ts ").success).toBe(true);
   expect(definition.args.line.safeParse(undefined).success).toBe(true);
@@ -16,7 +16,7 @@ test("uses the tool-call directory and returns structured output", async () => {
     path: "/workspace/project/src/app.ts",
     line: 42,
   }));
-  const definition = createOpenbridgeOpenTool(openFile);
+  const definition = createTermwireOpenTool(openFile);
   const result = await definition.execute({ path: "src/app.ts", line: 42 }, {
     directory: "/workspace/project",
   } as never);

@@ -8,8 +8,8 @@ const request = {
 };
 
 const workspaceEnv = () => ({
-  OPENBRIDGE_SOCKET: "/tmp/openbridge/main.sock",
-  OPENBRIDGE_EDITOR_PANE: "%1",
+  TERMWIRE_SOCKET: "/tmp/termwire/main.sock",
+  TERMWIRE_EDITOR_PANE: "%1",
 });
 
 const idleNvim: NvimClient = {
@@ -25,12 +25,12 @@ const idleTmux: TmuxClient = {
 };
 
 test.each([
-  [{ OPENBRIDGE_EDITOR_PANE: "%1" }],
-  [{ OPENBRIDGE_SOCKET: "/tmp/openbridge/main.sock" }],
+  [{ TERMWIRE_EDITOR_PANE: "%1" }],
+  [{ TERMWIRE_SOCKET: "/tmp/termwire/main.sock" }],
   [{}],
 ])("rejects an incomplete workspace environment", async (env) => {
   const openFile = createOpenFileHandler({ getEnv: () => env, nvim: idleNvim, tmux: idleTmux });
-  await expect(openFile(request)).rejects.toThrow("not inside an openbridge workspace");
+  await expect(openFile(request)).rejects.toThrow("not inside an termwire workspace");
 });
 
 test("resolves a relative path from the OpenCode directory", async () => {
@@ -71,8 +71,8 @@ test("selects the editor window before its pane", async () => {
 test("routes each invocation through its own socket and pane in order", async () => {
   const calls: string[] = [];
   let env = {
-    OPENBRIDGE_SOCKET: "/tmp/openbridge/one.sock",
-    OPENBRIDGE_EDITOR_PANE: "%1",
+    TERMWIRE_SOCKET: "/tmp/termwire/one.sock",
+    TERMWIRE_EDITOR_PANE: "%1",
   };
   const nvim = {
     async isRunning(socket: string) {
@@ -95,18 +95,18 @@ test("routes each invocation through its own socket and pane in order", async ()
 
   await openFile(request);
   env = {
-    OPENBRIDGE_SOCKET: "/tmp/openbridge/two.sock",
-    OPENBRIDGE_EDITOR_PANE: "%9",
+    TERMWIRE_SOCKET: "/tmp/termwire/two.sock",
+    TERMWIRE_EDITOR_PANE: "%9",
   };
   await openFile({ directory: "/workspace/other", path: "README.md" });
 
   expect(calls).toEqual([
-    "running:/tmp/openbridge/one.sock",
-    "open:/tmp/openbridge/one.sock:/workspace/project/src/app.ts:42",
+    "running:/tmp/termwire/one.sock",
+    "open:/tmp/termwire/one.sock:/workspace/project/src/app.ts:42",
     "window:%1",
     "focus:%1",
-    "running:/tmp/openbridge/two.sock",
-    "open:/tmp/openbridge/two.sock:/workspace/other/README.md:",
+    "running:/tmp/termwire/two.sock",
+    "open:/tmp/termwire/two.sock:/workspace/other/README.md:",
     "window:%9",
     "focus:%9",
   ]);
@@ -133,7 +133,7 @@ test("does not open or focus when Neovim is unavailable", async () => {
     },
   });
   await expect(openFile(request)).rejects.toThrow(
-    "nvim is not responding on socket /tmp/openbridge/main.sock",
+    "nvim is not responding on socket /tmp/termwire/main.sock",
   );
   expect(opened).toBe(false);
   expect(focused).toBe(false);

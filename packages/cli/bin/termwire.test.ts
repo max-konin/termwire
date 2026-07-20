@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 
 test("prints root help through the executable", async () => {
-  const binaryPath = new URL("./openbridge.ts", import.meta.url).pathname;
+  const binaryPath = new URL("./termwire.ts", import.meta.url).pathname;
   const child = Bun.spawn(["bun", binaryPath, "--help"], { stdout: "pipe", stderr: "pipe" });
   const [exitCode, stdout, stderr] = await Promise.all([
     child.exited,
@@ -10,7 +10,7 @@ test("prints root help through the executable", async () => {
   ]);
 
   expect(exitCode).toBe(0);
-  expect(stdout).toContain("Usage: openbridge");
+  expect(stdout).toContain("Usage: termwire");
   expect(stdout).toContain("up [options] <name>");
   expect(stderr).toBe("");
 });

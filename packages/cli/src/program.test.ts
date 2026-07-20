@@ -1,5 +1,5 @@
 import { expect, mock, spyOn, test } from "bun:test";
-import type { createTmux as createTmuxAdapter } from "@openbridge/tmux";
+import type { createTmux as createTmuxAdapter } from "@termwire/tmux";
 import { createProgram, createRuntimeUp, executeGit, removeStaleSocket, run } from "./program";
 import type { UpRequest } from "./up";
 import type { GitExec } from "./worktree";
@@ -31,10 +31,10 @@ test("normalizes supported up worktree forms", async () => {
 
 test("prints root and up help to injected stdout", async () => {
   const cases = [
-    { argv: ["--help"], expected: ["Usage: openbridge", "up [options] <name>"] },
+    { argv: ["--help"], expected: ["Usage: termwire", "up [options] <name>"] },
     {
       argv: ["up", "--help"],
-      expected: ["Usage: openbridge up [options] <name>", "-w, --worktree [wt-name]"],
+      expected: ["Usage: termwire up [options] <name>", "-w, --worktree [wt-name]"],
     },
   ];
 
@@ -81,7 +81,7 @@ test("presents up failures without a stack trace", async () => {
   expect(await run(["up", "dev", "-w"], { up, writeError, writeOutput })).toBe(1);
 
   expect(writeError).toHaveBeenCalledTimes(1);
-  expect(writeError).toHaveBeenCalledWith("openbridge: worktree requires a Git repository\n");
+  expect(writeError).toHaveBeenCalledWith("termwire: worktree requires a Git repository\n");
 });
 
 test("wires runtime requests through Git discovery and existing-session attach", async () => {
@@ -118,18 +118,18 @@ test("ignores a missing stale socket", async () => {
   const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
   const unlink = mock<(path: string) => Promise<void>>().mockRejectedValue(missing);
 
-  expect(await removeStaleSocket("/tmp/openbridge/repo-dev.sock", unlink)).toBeUndefined();
+  expect(await removeStaleSocket("/tmp/termwire/repo-dev.sock", unlink)).toBeUndefined();
 
-  expect(unlink).toHaveBeenCalledWith("/tmp/openbridge/repo-dev.sock");
+  expect(unlink).toHaveBeenCalledWith("/tmp/termwire/repo-dev.sock");
 });
 
 test("propagates a stale socket removal error other than ENOENT", async () => {
   const failure = Object.assign(new Error("permission denied"), { code: "EACCES" });
   const unlink = mock<(path: string) => Promise<void>>().mockRejectedValue(failure);
 
-  await expect(removeStaleSocket("/tmp/openbridge/repo-dev.sock", unlink)).rejects.toBe(failure);
+  await expect(removeStaleSocket("/tmp/termwire/repo-dev.sock", unlink)).rejects.toBe(failure);
 
-  expect(unlink).toHaveBeenCalledWith("/tmp/openbridge/repo-dev.sock");
+  expect(unlink).toHaveBeenCalledWith("/tmp/termwire/repo-dev.sock");
 });
 
 test("rejects an explicitly empty worktree option before calling up", async () => {
@@ -139,7 +139,7 @@ test("rejects an explicitly empty worktree option before calling up", async () =
 
   expect(await run(["up", "dev", "--worktree="], { up, writeError, writeOutput })).toBe(1);
 
-  expect(writeError).toHaveBeenCalledWith("openbridge: worktree name must not be empty\n");
+  expect(writeError).toHaveBeenCalledWith("termwire: worktree name must not be empty\n");
   expect(up).not.toHaveBeenCalled();
 });
 

@@ -201,7 +201,7 @@ describe("respawnPane", () => {
       await respawnPane(exec, {
         target: "%3",
         cwd: "/repo",
-        environment: { OPENBRIDGE_EDITOR_PANE: "%3" },
+        environment: { TERMWIRE_EDITOR_PANE: "%3" },
         command: ["nvim", "--listen", "/tmp/demo.sock"],
       }),
     ).toBeUndefined();
@@ -216,7 +216,7 @@ describe("respawnPane", () => {
           "-c",
           "/repo",
           "-e",
-          "OPENBRIDGE_EDITOR_PANE=%3",
+          "TERMWIRE_EDITOR_PANE=%3",
           "nvim",
           "--listen",
           "/tmp/demo.sock",

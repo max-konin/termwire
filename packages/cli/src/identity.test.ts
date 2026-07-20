@@ -6,12 +6,10 @@ test("sanitizes components without changing case", () => {
 });
 
 test("derives identity from the Git root", () => {
-  expect(
-    createIdentity({ cwd: "/tmp/Fallback", gitRoot: "/repo/OpenBridge", name: "Dev" }),
-  ).toEqual({
-    project: "OpenBridge",
-    session: "OpenBridge-Dev",
-    socket: "/tmp/openbridge/OpenBridge-Dev.sock",
+  expect(createIdentity({ cwd: "/tmp/Fallback", gitRoot: "/repo/TermWire", name: "Dev" })).toEqual({
+    project: "TermWire",
+    session: "TermWire-Dev",
+    socket: "/tmp/termwire/TermWire-Dev.sock",
   });
 });
 
@@ -35,13 +33,13 @@ test("rejects an empty name", () => {
 });
 
 test("accepts a socket path at the macOS Unix socket byte limit", () => {
-  const identity = createIdentity({ cwd: "/tmp/p", name: "n".repeat(80) });
+  const identity = createIdentity({ cwd: "/tmp/p", name: "n".repeat(82) });
 
   expect(Buffer.byteLength(identity.socket)).toBe(103);
 });
 
 test("rejects a socket path over the macOS Unix socket byte limit", () => {
-  expect(() => createIdentity({ cwd: "/tmp/p", name: "n".repeat(81) })).toThrow(
+  expect(() => createIdentity({ cwd: "/tmp/p", name: "n".repeat(83) })).toThrow(
     "socket path exceeds macOS Unix socket limit of 103 bytes",
   );
 });

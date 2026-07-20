@@ -4,14 +4,14 @@ import { findGitRoot, type GitExec, parseWorktreeList, prepareWorktree } from ".
 test("finds a Git root with exact argv", async () => {
   const exec = mock<GitExec>().mockResolvedValue({
     exitCode: 0,
-    stdout: "/repo/openbridge\n",
+    stdout: "/repo/termwire\n",
     stderr: "",
   });
 
-  expect(await findGitRoot(exec, "/repo/openbridge/src")).toBe("/repo/openbridge");
+  expect(await findGitRoot(exec, "/repo/termwire/src")).toBe("/repo/termwire");
   expect(exec).toHaveBeenCalledTimes(1);
   expect(exec).toHaveBeenCalledWith(["git", "rev-parse", "--show-toplevel"], {
-    cwd: "/repo/openbridge/src",
+    cwd: "/repo/termwire/src",
   });
 });
 

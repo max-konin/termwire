@@ -37,7 +37,7 @@ Workspace Bridge automates the entire workflow.
 - Create a ready-to-use tmux workspace with a single command.
 - Support multiple parallel sessions per project via git worktrees.
 - Provide an explicit OpenCode tool to open files in the running editor.
-- Keep OpenBridge workspace identity stateless: no OpenBridge-owned workspace config or state files.
+- Keep TermWire workspace identity stateless: no TermWire-owned workspace config or state files.
 - Keep the implementation small and modular.
 - Avoid any Neovim plugin.
 
@@ -90,14 +90,14 @@ Responsibilities:
 - create workspaces (optionally in a new git worktree)
 - coordinate other packages
 
-The CLI owns `openbridge up <name>` only. File opening is an OpenCode plugin tool, not a shell command.
+The CLI owns `termwire up <name>` only. File opening is an OpenCode plugin tool, not a shell command.
 
 Commands:
 
 ```bash
-openbridge up <name>                         # create or attach to <project>-<name>
-openbridge up <name> -w                       # use worktree name <name>
-openbridge up <name> --worktree <wt-name>     # use explicit worktree name <wt-name>
+termwire up <name>                         # create or attach to <project>-<name>
+termwire up <name> -w                       # use worktree name <name>
+termwire up <name> --worktree <wt-name>     # use explicit worktree name <wt-name>
 ```
 
 ---
@@ -135,11 +135,11 @@ Implementation details (RPC via `nvim --server`) are internal.
 ## opencode-plugin
 
 A lightweight OpenCode plugin. It depends on the OpenCode plugin API and directly
-composes `@openbridge/nvim` and `@openbridge/tmux` adapters.
+composes `@termwire/nvim` and `@termwire/tmux` adapters.
 
 Responsibilities:
 
-- expose explicit `openbridge_open({ path, line? })` execution
+- expose explicit `termwire_open({ path, line? })` execution
 - read inherited workspace environment and open through the nvim/tmux adapters
 - add in-memory changed/read-file tracking and selection only in Phase 5
 
@@ -152,7 +152,7 @@ The plugin should contain as little logic as possible.
 Running
 
 ```bash
-openbridge up dev
+termwire up dev
 ```
 
 creates or attaches to the tmux session `<project>-dev`. A newly created
@@ -165,17 +165,17 @@ session
 ```
 
 Each session gets a unique name and a unique Neovim socket
-(`/tmp/openbridge/<session>.sock`). Every final workspace process receives the
+(`/tmp/termwire/<session>.sock`). Every final workspace process receives the
 workspace environment:
 
 | Variable                 | Meaning                         |
 | ------------------------ | ------------------------------- |
-| `OPENBRIDGE_SESSION`     | tmux session name               |
-| `OPENBRIDGE_SOCKET`      | Neovim RPC socket path          |
-| `OPENBRIDGE_EDITOR_PANE` | tmux pane id of the editor pane |
+| `TERMWIRE_SESSION`     | tmux session name               |
+| `TERMWIRE_SOCKET`      | Neovim RPC socket path          |
+| `TERMWIRE_EDITOR_PANE` | tmux pane id of the editor pane |
 
 OpenCode is not started automatically. The user may start it from the shell
-and reshape windows and panes with ordinary tmux commands. OpenBridge only
+and reshape windows and panes with ordinary tmux commands. TermWire only
 requires the recorded Neovim editor pane; it owns no layout configuration or
 persistent workspace state.
 
@@ -193,7 +193,7 @@ Includes:
 - `editor` window running `nvim --listen <socket>`
 - free `shell` window
 
-`openbridge up <name>` works in the current directory and always addresses
+`termwire up <name>` works in the current directory and always addresses
 `<project>-<name>`; running it again attaches immediately to an existing
 session without worktree validation or mutation. With bare `-w` or
 `--worktree`, the worktree name is `<name>`; an explicit optional value chooses
@@ -218,12 +218,12 @@ session. Nothing is written to disk.
 
 ## Open File (Phase 4)
 
-OpenCode explicitly invokes `openbridge_open({ path, line? })`. The tool resolves
-the path from the tool-call directory, reads inherited `OPENBRIDGE_SOCKET` and
-`OPENBRIDGE_EDITOR_PANE`, opens through `@openbridge/nvim`, then focuses through
-`@openbridge/tmux`. It requires no `openbridge` executable in `PATH`.
+OpenCode explicitly invokes `termwire_open({ path, line? })`. The tool resolves
+the path from the tool-call directory, reads inherited `TERMWIRE_SOCKET` and
+`TERMWIRE_EDITOR_PANE`, opens through `@termwire/nvim`, then focuses through
+`@termwire/tmux`. It requires no `termwire` executable in `PATH`.
 
-Outside a workspace (without `OPENBRIDGE_SOCKET` or `OPENBRIDGE_EDITOR_PANE`)
+Outside a workspace (without `TERMWIRE_SOCKET` or `TERMWIRE_EDITOR_PANE`)
 the tool fails with a clear error. It does not track or select files; Phase 5
 adds only in-memory changed/read-file tracking and selection.
 
@@ -233,7 +233,7 @@ Files are **never opened automatically**.
 
 # Configuration
 
-OpenBridge owns no workspace or state configuration files; workspace identity
+TermWire owns no workspace or state configuration files; workspace identity
 is derived at `up` time and carried by environment variables. OpenCode loads the
 local plugin through the repository's `opencode.json` registration.
 
@@ -254,10 +254,10 @@ local plugin through the repository's `opencode.json` registration.
 
 Not part of the MVP.
 
-- `openbridge doctor` / `openbridge status`
-- `openbridge down` and worktree cleanup
-- `openbridge files` / `openbridge open-last` in the shell
-- OpenBridge-owned configuration file
+- `termwire doctor` / `termwire status`
+- `termwire down` and worktree cleanup
+- `termwire files` / `termwire open-last` in the shell
+- TermWire-owned configuration file
 - Telescope integration
 - fzf integration
 - Session history
@@ -277,15 +277,15 @@ A developer should be able to:
 2. Run:
 
 ```bash
-openbridge up <name>
+termwire up <name>
 ```
 
 1. Start coding immediately.
 
 The workspace must provide the editor and shell windows, final-process
 workspace environment, safe optional worktree reuse, and repeat attach behavior
-without OpenBridge-owned workspace configuration or persistent state. OpenCode
-must explicitly open a requested file with `openbridge_open({ path, line? })`
-through the nvim/tmux adapters, without routing through an `openbridge`
+without TermWire-owned workspace configuration or persistent state. OpenCode
+must explicitly open a requested file with `termwire_open({ path, line? })`
+through the nvim/tmux adapters, without routing through an `termwire`
 executable in `PATH`; files never open automatically. Phase 5 changed/read-file
 tracking and selection remain later work.

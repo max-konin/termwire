@@ -1,5 +1,5 @@
 import { mkdir as mkdirDirectory, stat, unlink as unlinkFile } from "node:fs/promises";
-import { createTmux } from "@openbridge/tmux";
+import { createTmux } from "@termwire/tmux";
 import { Command, CommanderError } from "commander";
 import { type UpRequest, up } from "./up";
 import { findGitRoot, type GitExec, prepareWorktree } from "./worktree";
@@ -80,7 +80,7 @@ export function createRuntimeUp(dependencies: Partial<RuntimeDependencies> = {})
 }
 
 export function createProgram(dependencies: ProgramDependencies): Command {
-  const program = new Command().name("openbridge").configureOutput({
+  const program = new Command().name("termwire").configureOutput({
     writeErr: dependencies.writeError,
     writeOut: dependencies.writeOutput,
   });
@@ -122,7 +122,7 @@ export async function run(
       return error.exitCode;
     }
     const message = error instanceof Error ? error.message : String(error);
-    writeError(`openbridge: ${message}\n`);
+    writeError(`termwire: ${message}\n`);
     return 1;
   }
 }

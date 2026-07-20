@@ -1,28 +1,36 @@
-# @openbridge/cli
+# @termwire/cli
 
-The project's main entry point — the `openbridge` command. Orchestrates the
+Requires Bun >=1.3.14, tmux >=3.2, and Neovim >=0.9.
+
+```bash
+bun add --global @termwire/cli
+termwire --help
+termwire up dev
+```
+
+The project's main entry point — the `termwire` command. Orchestrates the
 other packages. Fully **stateless**: no config files, no state files —
-workspace identity lives in environment variables set by `openbridge up <name>`.
+workspace identity lives in environment variables set by `termwire up <name>`.
 
 ## Why it exists
 
 This is the tool that removes manual tmux/editor setup: bring up a stateless
 workspace with a single command. The CLI owns `up <name>` only; file opening is
-the explicit `openbridge_open({ path, line? })` OpenCode plugin tool.
+the explicit `termwire_open({ path, line? })` OpenCode plugin tool.
 
 ## Commands
 
 | Command                                      | What it does |
 | -------------------------------------------- | ------------ |
-| `openbridge up <name>`                       | create or attach to `<project>-<name>` in the current directory |
-| `openbridge up <name> -w`                    | create or reuse sibling worktree `<project>-<name>` on branch `<name>` |
-| `openbridge up <name> --worktree <wt-name>`  | create or reuse the explicit sibling worktree while retaining session `<project>-<name>` |
+| `termwire up <name>`                       | create or attach to `<project>-<name>` in the current directory |
+| `termwire up <name> -w`                    | create or reuse sibling worktree `<project>-<name>` on branch `<name>` |
+| `termwire up <name> --worktree <wt-name>`  | create or reuse the explicit sibling worktree while retaining session `<project>-<name>` |
 
 ## How it works
 
 - `up <name>` creates `editor` (`nvim --listen <socket>`) and free `shell`
-  windows. Final processes receive `OPENBRIDGE_SESSION`, `OPENBRIDGE_SOCKET`,
-  and `OPENBRIDGE_EDITOR_PANE`.
+  windows. Final processes receive `TERMWIRE_SESSION`, `TERMWIRE_SOCKET`,
+  and `TERMWIRE_EDITOR_PANE`.
 - OpenCode is not started automatically. Users may start it in the shell and
   reshape the workspace with tmux.
 - Existing sessions attach immediately without worktree mutation. Bare
@@ -34,6 +42,6 @@ the explicit `openbridge_open({ path, line? })` OpenCode plugin tool.
 
 ## Dependencies
 
-Commander 15 is the CLI runtime dependency for parsing `up`. `@openbridge/tmux`
-and `@openbridge/nvim` are thin adapters over their binaries; the CLI owns
+Commander 15 is the CLI runtime dependency for parsing `up`. `@termwire/tmux`
+and `@termwire/nvim` are thin adapters over their binaries; the CLI owns
 workspace policy and orchestration.

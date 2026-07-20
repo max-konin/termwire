@@ -1,4 +1,4 @@
-import type { createTmux } from "@openbridge/tmux";
+import type { createTmux } from "@termwire/tmux";
 import { createIdentity } from "./identity";
 
 export interface UpRequest {
@@ -31,7 +31,7 @@ export async function up(request: UpRequest, dependencies: UpDependencies): Prom
 
   const workspace = await resolveWorkspace(request, dependencies, identity, gitRoot, cwd);
 
-  await dependencies.mkdir("/tmp/openbridge");
+  await dependencies.mkdir("/tmp/termwire");
   await dependencies.removeFile(identity.socket);
   const editor = await dependencies.tmux.newSession({
     session: identity.session,
@@ -79,9 +79,9 @@ function createWorkspaceEnvironment(
   editorPane: string,
 ) {
   return {
-    OPENBRIDGE_SESSION: identity.session,
-    OPENBRIDGE_SOCKET: identity.socket,
-    OPENBRIDGE_EDITOR_PANE: editorPane,
+    TERMWIRE_SESSION: identity.session,
+    TERMWIRE_SOCKET: identity.socket,
+    TERMWIRE_EDITOR_PANE: editorPane,
   };
 }
 

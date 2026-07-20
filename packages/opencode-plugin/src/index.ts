@@ -1,7 +1,7 @@
-import { createNvim } from "@openbridge/nvim";
-import { createTmux } from "@openbridge/tmux";
+import { createNvim } from "@termwire/nvim";
+import { createTmux } from "@termwire/tmux";
 import { createOpenFileHandler } from "./open";
-import { createOpenbridgePlugin } from "./plugin";
+import { createTermwirePlugin } from "./plugin";
 
 const openFile = createOpenFileHandler({
   getEnv: () => process.env,
@@ -9,4 +9,4 @@ const openFile = createOpenFileHandler({
   tmux: createTmux(),
 });
 
-export const OpenbridgePlugin = createOpenbridgePlugin(openFile);
+export const TermwirePlugin = createTermwirePlugin(openFile);

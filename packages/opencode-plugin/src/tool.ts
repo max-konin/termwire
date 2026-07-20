@@ -1,7 +1,7 @@
 import { tool } from "@opencode-ai/plugin";
 import type { OpenFileHandler } from "./open";
 
-export function createOpenbridgeOpenTool(openFile: OpenFileHandler) {
+export function createTermwireOpenTool(openFile: OpenFileHandler) {
   return tool({
     description: "Open a file in this workspace's Neovim instance and focus the editor pane.",
     args: {

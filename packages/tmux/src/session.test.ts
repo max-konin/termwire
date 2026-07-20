@@ -159,11 +159,9 @@ describe("session lifecycle", () => {
   test("sets an environment value on an exact session target", async () => {
     const exec = mock(async (..._args: Parameters<Exec>) => result(0));
 
-    expect(
-      await setEnvironment(exec, "demo", "OPENBRIDGE_SOCKET", "/tmp/demo.sock"),
-    ).toBeUndefined();
+    expect(await setEnvironment(exec, "demo", "TERMWIRE_SOCKET", "/tmp/demo.sock")).toBeUndefined();
     expect(exec).toHaveBeenCalledWith(
-      ["tmux", "set-environment", "-t", "=demo", "OPENBRIDGE_SOCKET", "/tmp/demo.sock"],
+      ["tmux", "set-environment", "-t", "=demo", "TERMWIRE_SOCKET", "/tmp/demo.sock"],
       undefined,
     );
   });
