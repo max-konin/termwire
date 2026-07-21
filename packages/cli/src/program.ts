@@ -1,6 +1,7 @@
 import { mkdir as mkdirDirectory, stat, unlink as unlinkFile } from "node:fs/promises";
 import { createTmux } from "@termwire/tmux";
 import { Command, CommanderError } from "commander";
+import { prepareBranch } from "./branch";
 import { type UpRequest, up } from "./up";
 import { findGitRoot, type GitExec, prepareWorktree } from "./worktree";
 
@@ -70,6 +71,7 @@ export function createRuntimeUp(dependencies: Partial<RuntimeDependencies> = {})
     up(request, {
       cwd,
       findGitRoot: (directory) => findGitRoot(gitExec, directory),
+      prepareBranch: ({ cwd: directory, name }) => prepareBranch(gitExec, directory, name),
       prepareWorktree: (options) => prepareWorktree({ ...options, exec: gitExec, pathExists }),
       mkdir: async (path) => {
         await mkdir(path, { recursive: true });

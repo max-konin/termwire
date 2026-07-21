@@ -10,7 +10,13 @@ export interface UpRequest {
 export interface UpDependencies {
   cwd: () => string;
   findGitRoot: (cwd: string) => Promise<string | undefined>;
-  prepareWorktree: (options: { gitRoot: string; project: string; name: string }) => Promise<string>;
+  prepareBranch: (options: { cwd: string; name: string }) => Promise<void>;
+  prepareWorktree: (options: {
+    gitRoot: string;
+    project: string;
+    name: string;
+    branch: string;
+  }) => Promise<string>;
   mkdir: (path: string) => Promise<void>;
   removeFile: (path: string) => Promise<void>;
   tmux: ReturnType<typeof createTmux>;
@@ -19,6 +25,9 @@ export interface UpDependencies {
 export async function up(request: UpRequest, dependencies: UpDependencies): Promise<void> {
   if (request.worktree === "") {
     throw new Error("worktree name must not be empty");
+  }
+  if (request.branch === "") {
+    throw new Error("branch name must not be empty");
   }
 
   const cwd = dependencies.cwd();
@@ -63,15 +72,23 @@ async function resolveWorkspace(
   cwd: string,
 ): Promise<string> {
   if (request.worktree === undefined) {
+    if (request.branch !== undefined) {
+      if (!gitRoot) {
+        throw new Error("branch requires a Git repository");
+      }
+      await dependencies.prepareBranch({ cwd, name: request.branch });
+    }
     return cwd;
   }
   if (!gitRoot) {
     throw new Error("worktree requires a Git repository");
   }
+  const name = request.worktree === true ? request.name : request.worktree;
   return dependencies.prepareWorktree({
     gitRoot,
     project: identity.project,
-    name: request.worktree === true ? request.name : request.worktree,
+    name,
+    branch: request.branch ?? name,
   });
 }
 

@@ -61,14 +61,16 @@ test("attaches immediately to an existing session without workspace side effects
     mock<
       (options: { gitRoot: string; project: string; name: string }) => Promise<string>
     >().mockResolvedValue("/repo-feature");
+  const prepareBranch = mock<(options: { cwd: string; name: string }) => Promise<void>>();
   const mkdir = mock<(path: string) => Promise<void>>().mockResolvedValue();
   const removeFile = mock<(path: string) => Promise<void>>().mockResolvedValue();
 
   await up(
-    { name: "dev", worktree: "feature" },
+    { name: "dev", worktree: "feature", branch: "feature/api" },
     {
       cwd: mock<() => string>().mockReturnValue("/repo"),
       findGitRoot,
+      prepareBranch,
       prepareWorktree,
       mkdir,
       removeFile,
@@ -78,6 +80,7 @@ test("attaches immediately to an existing session without workspace side effects
 
   expect(hasSession).toHaveBeenCalledWith("repo-dev");
   expect(attach).toHaveBeenCalledWith("repo-dev");
+  expect(prepareBranch).not.toHaveBeenCalled();
   expect(prepareWorktree).not.toHaveBeenCalled();
   expect(mkdir).not.toHaveBeenCalled();
   expect(removeFile).not.toHaveBeenCalled();
@@ -95,6 +98,7 @@ test("uses the original cwd when no worktree is requested", async () => {
     {
       cwd: mock<() => string>().mockReturnValue("/repo"),
       findGitRoot: mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue("/repo"),
+      prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
       prepareWorktree,
       mkdir: mock<(path: string) => Promise<void>>().mockResolvedValue(),
       removeFile: mock<(path: string) => Promise<void>>().mockResolvedValue(),
@@ -106,45 +110,19 @@ test("uses the original cwd when no worktree is requested", async () => {
   expect(prepareWorktree).not.toHaveBeenCalled();
 });
 
-test("uses the request name for a bare worktree", async () => {
+test("uses the exact slash-preserving request name for a bare worktree branch", async () => {
   const { tmux, newSession } = createWorkspaceTmux();
   const prepareWorktree =
     mock<
       (options: { gitRoot: string; project: string; name: string }) => Promise<string>
-    >().mockResolvedValue("/repo-dev");
+    >().mockResolvedValue("/repo-chore-improve");
 
   await up(
-    { name: "dev", worktree: true },
+    { name: "chore/improve", worktree: true },
     {
       cwd: mock<() => string>().mockReturnValue("/repo"),
       findGitRoot: mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue("/repo"),
-      prepareWorktree,
-      mkdir: mock<(path: string) => Promise<void>>().mockResolvedValue(),
-      removeFile: mock<(path: string) => Promise<void>>().mockResolvedValue(),
-      tmux,
-    },
-  );
-
-  expect(prepareWorktree).toHaveBeenCalledWith({ gitRoot: "/repo", project: "repo", name: "dev" });
-  expect(newSession).toHaveBeenCalledWith({
-    session: "repo-dev",
-    name: "editor",
-    cwd: "/repo-dev",
-  });
-});
-
-test("uses an explicit worktree name and starts its workspace", async () => {
-  const { tmux, newSession } = createWorkspaceTmux();
-  const prepareWorktree =
-    mock<
-      (options: { gitRoot: string; project: string; name: string }) => Promise<string>
-    >().mockResolvedValue("/repo-feature");
-
-  await up(
-    { name: "dev", worktree: "feature" },
-    {
-      cwd: mock<() => string>().mockReturnValue("/repo"),
-      findGitRoot: mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue("/repo"),
+      prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
       prepareWorktree,
       mkdir: mock<(path: string) => Promise<void>>().mockResolvedValue(),
       removeFile: mock<(path: string) => Promise<void>>().mockResolvedValue(),
@@ -155,12 +133,46 @@ test("uses an explicit worktree name and starts its workspace", async () => {
   expect(prepareWorktree).toHaveBeenCalledWith({
     gitRoot: "/repo",
     project: "repo",
-    name: "feature",
+    name: "chore/improve",
+    branch: "chore/improve",
+  });
+  expect(newSession).toHaveBeenCalledWith({
+    session: "repo-chore-improve",
+    name: "editor",
+    cwd: "/repo-chore-improve",
+  });
+});
+
+test("keeps an explicit worktree key independent from the branch override", async () => {
+  const { tmux, newSession } = createWorkspaceTmux();
+  const prepareWorktree =
+    mock<
+      (options: { gitRoot: string; project: string; name: string }) => Promise<string>
+    >().mockResolvedValue("/repo-legacy-name");
+
+  await up(
+    { name: "dev", worktree: "legacy-name", branch: "feature/api" },
+    {
+      cwd: mock<() => string>().mockReturnValue("/repo"),
+      findGitRoot: mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue("/repo"),
+      prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
+      prepareWorktree,
+      mkdir: mock<(path: string) => Promise<void>>().mockResolvedValue(),
+      removeFile: mock<(path: string) => Promise<void>>().mockResolvedValue(),
+      tmux,
+    },
+  );
+
+  expect(prepareWorktree).toHaveBeenCalledWith({
+    gitRoot: "/repo",
+    project: "repo",
+    name: "legacy-name",
+    branch: "feature/api",
   });
   expect(newSession).toHaveBeenCalledWith({
     session: "repo-dev",
     name: "editor",
-    cwd: "/repo-feature",
+    cwd: "/repo-legacy-name",
   });
 });
 
@@ -178,6 +190,7 @@ test("rejects a worktree request outside a Git repository", async () => {
         cwd: mock<() => string>().mockReturnValue("/tmp/project"),
         findGitRoot:
           mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue(undefined),
+        prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
         prepareWorktree,
         mkdir: mock<(path: string) => Promise<void>>().mockResolvedValue(),
         removeFile: mock<(path: string) => Promise<void>>().mockResolvedValue(),
@@ -204,6 +217,7 @@ test("rejects an explicitly empty worktree name before attaching", async () => {
         cwd: mock<() => string>().mockReturnValue("/repo"),
         findGitRoot:
           mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue("/repo"),
+        prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
         prepareWorktree,
         mkdir: mock<(path: string) => Promise<void>>().mockResolvedValue(),
         removeFile: mock<(path: string) => Promise<void>>().mockResolvedValue(),
@@ -227,6 +241,7 @@ test("rejects an overlong socket identity before checking tmux", async () => {
         cwd: mock<() => string>().mockReturnValue("/tmp/p"),
         findGitRoot:
           mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue(undefined),
+        prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
         prepareWorktree:
           mock<(options: { gitRoot: string; project: string; name: string }) => Promise<string>>(),
         mkdir: mock<(path: string) => Promise<void>>().mockResolvedValue(),
@@ -320,6 +335,7 @@ test("creates the default editor and shell workspace protocol", async () => {
     {
       cwd: mock<() => string>().mockReturnValue("/repo"),
       findGitRoot: mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue("/repo"),
+      prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
       prepareWorktree:
         mock<(options: { gitRoot: string; project: string; name: string }) => Promise<string>>(),
       mkdir,
@@ -385,6 +401,7 @@ test("cleans up a partially created session when newWindow fails", async () => {
         cwd: mock<() => string>().mockReturnValue("/repo"),
         findGitRoot:
           mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue("/repo"),
+        prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
         prepareWorktree:
           mock<(options: { gitRoot: string; project: string; name: string }) => Promise<string>>(),
         mkdir: mock<(path: string) => Promise<void>>().mockResolvedValue(),
@@ -410,6 +427,7 @@ test("preserves the setup error when partial-session cleanup fails", async () =>
         cwd: mock<() => string>().mockReturnValue("/repo"),
         findGitRoot:
           mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue("/repo"),
+        prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
         prepareWorktree:
           mock<(options: { gitRoot: string; project: string; name: string }) => Promise<string>>(),
         mkdir: mock<(path: string) => Promise<void>>().mockResolvedValue(),
@@ -434,6 +452,7 @@ test("does not clean up when stale socket removal fails before session creation"
         cwd: mock<() => string>().mockReturnValue("/repo"),
         findGitRoot:
           mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue("/repo"),
+        prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
         prepareWorktree:
           mock<(options: { gitRoot: string; project: string; name: string }) => Promise<string>>(),
         mkdir: mock<(path: string) => Promise<void>>().mockResolvedValue(),
@@ -445,4 +464,116 @@ test("does not clean up when stale socket removal fails before session creation"
 
   expect(newSession).not.toHaveBeenCalled();
   expect(killSession).not.toHaveBeenCalled();
+});
+
+test("uses an explicit branch without changing the worktree directory key", async () => {
+  const { tmux } = createWorkspaceTmux();
+  const prepareWorktree = mock<
+    (options: { gitRoot: string; project: string; name: string; branch: string }) => Promise<string>
+  >().mockResolvedValue("/repo-dev");
+
+  await up(
+    { name: "dev", worktree: true, branch: "chore/improve" },
+    {
+      cwd: () => "/repo",
+      findGitRoot: async () => "/repo",
+      prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
+      prepareWorktree,
+      mkdir: async () => {},
+      removeFile: async () => {},
+      tmux,
+    },
+  );
+
+  expect(prepareWorktree).toHaveBeenCalledWith({
+    gitRoot: "/repo",
+    project: "repo",
+    name: "dev",
+    branch: "chore/improve",
+  });
+});
+
+test("prepares an explicit branch in the current checkout", async () => {
+  const { tmux, newSession } = createWorkspaceTmux();
+  const prepareBranch =
+    mock<(options: { cwd: string; name: string }) => Promise<void>>().mockResolvedValue();
+
+  await up(
+    { name: "dev", branch: "feature/api" },
+    {
+      cwd: () => "/repo",
+      findGitRoot: async () => "/repo",
+      prepareBranch,
+      prepareWorktree: mock<
+        (options: {
+          gitRoot: string;
+          project: string;
+          name: string;
+          branch: string;
+        }) => Promise<string>
+      >(),
+      mkdir: async () => {},
+      removeFile: async () => {},
+      tmux,
+    },
+  );
+
+  expect(prepareBranch).toHaveBeenCalledWith({ cwd: "/repo", name: "feature/api" });
+  expect(newSession).toHaveBeenCalledWith({ session: "repo-dev", name: "editor", cwd: "/repo" });
+});
+
+test("rejects a branch request outside a Git repository", async () => {
+  const { tmux, newSession } = createWorkspaceTmux();
+  const prepareBranch = mock<(options: { cwd: string; name: string }) => Promise<void>>();
+
+  await expect(
+    up(
+      { name: "dev", branch: "feature/api" },
+      {
+        cwd: () => "/tmp/project",
+        findGitRoot: async () => undefined,
+        prepareBranch,
+        prepareWorktree: mock<
+          (options: {
+            gitRoot: string;
+            project: string;
+            name: string;
+            branch: string;
+          }) => Promise<string>
+        >(),
+        mkdir: async () => {},
+        removeFile: async () => {},
+        tmux,
+      },
+    ),
+  ).rejects.toThrow("branch requires a Git repository");
+  expect(prepareBranch).not.toHaveBeenCalled();
+  expect(newSession).not.toHaveBeenCalled();
+});
+
+test("rejects an empty direct branch request before checking tmux", async () => {
+  const { tmux, hasSession } = createWorkspaceTmux(true);
+
+  await expect(
+    up(
+      { name: "dev", branch: "" },
+      {
+        cwd: () => "/repo",
+        findGitRoot: async () => "/repo",
+        prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
+        prepareWorktree: mock<
+          (options: {
+            gitRoot: string;
+            project: string;
+            name: string;
+            branch: string;
+          }) => Promise<string>
+        >(),
+        mkdir: async () => {},
+        removeFile: async () => {},
+        tmux,
+      },
+    ),
+  ).rejects.toThrow("branch name must not be empty");
+  expect(hasSession).not.toHaveBeenCalled();
 });

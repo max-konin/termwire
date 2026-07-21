@@ -127,6 +127,53 @@ test("wires runtime requests through Git discovery and existing-session attach",
   expect(unlink).not.toHaveBeenCalled();
 });
 
+test("wires runtime branch preparation before creating a new session", async () => {
+  const tmux = {
+    hasSession: mock<() => Promise<boolean>>().mockResolvedValue(false),
+    newSession: mock<() => Promise<{ windowId: string; paneId: string }>>().mockResolvedValue({
+      windowId: "@1",
+      paneId: "%1",
+    }),
+    setEnvironment: mock<() => Promise<void>>().mockResolvedValue(),
+    respawnPane: mock<() => Promise<void>>().mockResolvedValue(),
+    newWindow: mock<() => Promise<{ windowId: string; paneId: string }>>().mockResolvedValue({
+      windowId: "@2",
+      paneId: "%2",
+    }),
+    selectWindow: mock<() => Promise<void>>().mockResolvedValue(),
+    selectPane: mock<() => Promise<void>>().mockResolvedValue(),
+    attach: mock<() => Promise<void>>().mockResolvedValue(),
+  } as unknown as ReturnType<typeof createTmuxAdapter>;
+  const gitExec = mock<GitExec>().mockImplementation(async (argv) => {
+    if (argv.join(" ") === "git rev-parse --show-toplevel") {
+      return { exitCode: 0, stdout: "/repo\n", stderr: "" };
+    }
+    if (argv.join(" ") === "git show-ref --verify --quiet refs/heads/feature/api") {
+      return { exitCode: 1, stdout: "", stderr: "" };
+    }
+    return { exitCode: 0, stdout: "", stderr: "" };
+  });
+
+  const runtimeUp = createRuntimeUp({
+    createTmux: () => tmux,
+    gitExec,
+    cwd: () => "/repo",
+    mkdir: mock<(path: string, options: { recursive: true }) => Promise<unknown>>().mockResolvedValue(
+      undefined,
+    ),
+    pathExists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(false),
+    unlink: mock<(path: string) => Promise<void>>().mockResolvedValue(),
+  });
+
+  await runtimeUp({ name: "dev", branch: "feature/api" });
+
+  expect(gitExec.mock.calls).toEqual([
+    [["git", "rev-parse", "--show-toplevel"], { cwd: "/repo" }],
+    [["git", "show-ref", "--verify", "--quiet", "refs/heads/feature/api"], { cwd: "/repo" }],
+    [["git", "switch", "-c", "feature/api"], { cwd: "/repo" }],
+  ]);
+});
+
 test("ignores a missing stale socket", async () => {
   const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
   const unlink = mock<(path: string) => Promise<void>>().mockRejectedValue(missing);
