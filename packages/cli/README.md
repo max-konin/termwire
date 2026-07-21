@@ -20,11 +20,20 @@ the explicit `termwire_open({ path, line? })` OpenCode plugin tool.
 
 ## Commands
 
-| Command                                      | What it does |
-| -------------------------------------------- | ------------ |
-| `termwire up <name>`                       | create or attach to `<project>-<name>` in the current directory |
-| `termwire up <name> -w`                    | create or reuse sibling worktree `<project>-<name>` on branch `<name>` |
-| `termwire up <name> --worktree <wt-name>`  | create or reuse the explicit sibling worktree while retaining session `<project>-<name>` |
+| Command | Workspace | Branch |
+| --- | --- | --- |
+| `termwire up chore/improve` | current directory | unchanged |
+| `termwire up chore/improve -w` | sibling `<project>-chore-improve` | `chore/improve` |
+| `termwire up session -w -b feature/api` | sibling `<project>-session` | `feature/api` |
+| `termwire up session -b feature/api` | current directory | switch to it, or create it from current `HEAD` |
+| `termwire up session -w legacy-name` | sibling `<project>-legacy-name` | `legacy-name` |
+| `termwire up session -w legacy-name -b feature/api` | sibling `<project>-legacy-name` | `feature/api` |
+
+`<name>` always determines the tmux identity. With `-w`, an explicit optional worktree value
+selects the directory key; otherwise `<name>` does. `--branch` selects the exact Git branch when
+present; otherwise the worktree directory key is also the branch name. Slashes are preserved in
+Git branch names and replaced only in filesystem-safe worktree directory names. Without `-w`, Git
+is changed only when `--branch` is present. Existing tmux sessions attach without Git mutations.
 
 ## How it works
 
@@ -33,9 +42,7 @@ the explicit `termwire_open({ path, line? })` OpenCode plugin tool.
   and `TERMWIRE_EDITOR_PANE`.
 - OpenCode is not started automatically. Users may start it in the shell and
   reshape the workspace with tmux.
-- Existing sessions attach immediately without worktree mutation. Bare
-  `-w` uses the workspace name; an explicit worktree value selects its branch
-  and sibling directory while the session name stays `<project>-<name>`.
+- Existing sessions attach immediately without branch or worktree mutation.
 - There are no config files or persistent state.
 - The CLI has no shell-facing `open` command and does not need to be in `PATH`
   for the plugin: the plugin composes the nvim and tmux adapters directly.
