@@ -24,5 +24,4 @@ bun run lint
 bun test
 bunx tsc --noEmit
 bun run build
-bun run pack:check
 ```

@@ -1,14 +1,18 @@
 import { expect, mock, test } from "bun:test";
 import { createTermwireOpenTool } from "./tool";
 
+function safeParseSuccess(schema: unknown, value: unknown): boolean {
+  return (schema as { safeParse(value: unknown): { success: boolean } }).safeParse(value).success;
+}
+
 test("requires a path and accepts only a positive integer line", () => {
   const definition = createTermwireOpenTool(mock(async () => ({ path: "/x" })));
-  expect(definition.args.path.safeParse("   ").success).toBe(false);
-  expect(definition.args.path.safeParse(" src/app.ts ").success).toBe(true);
-  expect(definition.args.line.safeParse(undefined).success).toBe(true);
-  expect(definition.args.line.safeParse(42).success).toBe(true);
-  expect(definition.args.line.safeParse(0).success).toBe(false);
-  expect(definition.args.line.safeParse(1.5).success).toBe(false);
+  expect(safeParseSuccess(definition.args.path, "   ")).toBe(false);
+  expect(safeParseSuccess(definition.args.path, " src/app.ts ")).toBe(true);
+  expect(safeParseSuccess(definition.args.line, undefined)).toBe(true);
+  expect(safeParseSuccess(definition.args.line, 42)).toBe(true);
+  expect(safeParseSuccess(definition.args.line, 0)).toBe(false);
+  expect(safeParseSuccess(definition.args.line, 1.5)).toBe(false);
 });
 
 test("uses the tool-call directory and returns structured output", async () => {

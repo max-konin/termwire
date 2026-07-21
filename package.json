@@ -13,8 +13,6 @@
     "test": "bun test",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "pack:check": "bun scripts/release/pack-check-cli.ts",
-    "pack:prepare": "bun scripts/release/pack-check-cli.ts --output",
     "build": "rm -rf packages/*/dist && bunx tsc -p packages/tmux/tsconfig.build.json && bunx tsc -p packages/nvim/tsconfig.build.json && bunx tsc -p packages/cli/tsconfig.build.json && bunx tsc -p packages/opencode-plugin/tsconfig.build.json && chmod +x packages/cli/dist/bin/termwire.js",
     "release": "bun run build && changeset publish"
   },

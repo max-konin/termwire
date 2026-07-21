@@ -38,9 +38,6 @@ git tag --list "@termwire/*"
 git push origin master --follow-tags
 ```
 
-`bun run pack:check` and `bun run pack:prepare` remain optional diagnostics;
-they are not required for this flow.
-
 ## Retries
 
 - After a build failure, fix and commit before retrying.
