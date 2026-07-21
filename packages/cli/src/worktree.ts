@@ -59,16 +59,18 @@ export async function prepareWorktree(options: {
   gitRoot: string;
   project: string;
   name: string;
+  branch?: string;
 }): Promise<string> {
-  const name = sanitizeComponent(options.name, "name");
-  const target = join(dirname(options.gitRoot), `${options.project}-${name}`);
+  const pathName = sanitizeComponent(options.name, "name");
+  const branch = options.branch ?? options.name;
+  const target = join(dirname(options.gitRoot), `${options.project}-${pathName}`);
   const entries = await listWorktrees(options.exec, options.gitRoot);
 
   const registered = findWorktreeAt(entries, target);
   if (registered) {
     return reuseRegisteredWorktree({
       entry: registered,
-      name,
+      branch,
       target,
       gitRoot: options.gitRoot,
       exec: options.exec,
@@ -81,12 +83,14 @@ export async function prepareWorktree(options: {
     throw new Error(`Worktree conflict: target path is occupied: ${target}`);
   }
 
-  const branchAt = findBranchCheckout(entries, name);
+  const branchAt = findBranchCheckout(entries, branch);
   if (branchAt) {
-    throw new Error(`Worktree conflict: branch ${name} is already checked out at ${branchAt.path}`);
+    throw new Error(
+      `Worktree conflict: branch ${branch} is already checked out at ${branchAt.path}`,
+    );
   }
 
-  await addWorktree(options.exec, options.gitRoot, target, name);
+  await addWorktree(options.exec, options.gitRoot, target, branch);
   return target;
 }
 
@@ -104,7 +108,7 @@ function findWorktreeAt(entries: WorktreeEntry[], target: string): WorktreeEntry
   return entries.find((entry) => resolve(entry.path) === resolve(target));
 }
 
-function validateRegistrationMetadata(entry: WorktreeEntry, name: string): void {
+function validateRegistrationMetadata(entry: WorktreeEntry, branch: string): void {
   if (entry.prunable) {
     throw new Error(
       `Worktree conflict: registered target is prunable${
@@ -118,23 +122,23 @@ function validateRegistrationMetadata(entry: WorktreeEntry, name: string): void 
   if (entry.detached) {
     throw new Error("Worktree conflict: registered target is detached");
   }
-  if (entry.branch !== name) {
+  if (entry.branch !== branch) {
     throw new Error(
-      `Worktree conflict: expected ${name}, found ${entry.branch ?? "detached HEAD"}`,
+      `Worktree conflict: expected ${branch}, found ${entry.branch ?? "detached HEAD"}`,
     );
   }
 }
 
 async function reuseRegisteredWorktree(options: {
   entry: WorktreeEntry;
-  name: string;
+  branch: string;
   target: string;
   gitRoot: string;
   exec: GitExec;
   pathExists: (path: string) => Promise<boolean>;
   realpath: (path: string) => Promise<string>;
 }): Promise<string> {
-  validateRegistrationMetadata(options.entry, options.name);
+  validateRegistrationMetadata(options.entry, options.branch);
   if (!(await options.pathExists(options.target))) {
     throw new Error(`Worktree conflict: registered target path is missing: ${options.target}`);
   }
@@ -143,31 +147,34 @@ async function reuseRegisteredWorktree(options: {
     realpath: options.realpath,
     target: options.target,
     gitRoot: options.gitRoot,
-    name: options.name,
+    branch: options.branch,
   });
   return options.target;
 }
 
-function findBranchCheckout(entries: WorktreeEntry[], name: string): WorktreeEntry | undefined {
-  return entries.find((entry) => entry.branch === name);
+function findBranchCheckout(entries: WorktreeEntry[], branch: string): WorktreeEntry | undefined {
+  return entries.find((entry) => entry.branch === branch);
 }
 
 async function addWorktree(
   exec: GitExec,
   gitRoot: string,
   target: string,
-  name: string,
+  branch: string,
 ): Promise<void> {
-  const branch = await exec(["git", "show-ref", "--verify", "--quiet", `refs/heads/${name}`], {
-    cwd: gitRoot,
-  });
-  if (branch.exitCode !== 0 && branch.exitCode !== 1) {
-    throw new Error(`git show-ref failed: ${branch.stderr}`);
+  const existing = await exec(
+    ["git", "show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
+    {
+      cwd: gitRoot,
+    },
+  );
+  if (existing.exitCode !== 0 && existing.exitCode !== 1) {
+    throw new Error(`git show-ref failed: ${existing.stderr}`);
   }
   const command =
-    branch.exitCode === 0
-      ? ["git", "worktree", "add", target, name]
-      : ["git", "worktree", "add", "-b", name, target];
+    existing.exitCode === 0
+      ? ["git", "worktree", "add", target, branch]
+      : ["git", "worktree", "add", "-b", branch, target];
   const added = await exec(command, { cwd: gitRoot });
   if (added.exitCode !== 0) {
     throw new Error(`git worktree add failed: ${added.stderr}`);
@@ -179,7 +186,7 @@ async function validateRegisteredWorktree(options: {
   realpath: (path: string) => Promise<string>;
   target: string;
   gitRoot: string;
-  name: string;
+  branch: string;
 }): Promise<void> {
   const targetDetails = await options.exec(
     ["git", "rev-parse", "--show-toplevel", "--git-common-dir"],
@@ -229,9 +236,9 @@ async function validateRegisteredWorktree(options: {
       `Worktree conflict: registered target has no symbolic HEAD: ${liveBranch.stderr}`,
     );
   }
-  if (liveBranch.stdout.trim() !== `refs/heads/${options.name}`) {
+  if (liveBranch.stdout.trim() !== `refs/heads/${options.branch}`) {
     throw new Error(
-      `Worktree conflict: registered target live branch is ${liveBranch.stdout.trim()}, expected refs/heads/${options.name}`,
+      `Worktree conflict: registered target live branch is ${liveBranch.stdout.trim()}, expected refs/heads/${options.branch}`,
     );
   }
 }

@@ -428,3 +428,104 @@ test("reports a worktree-add failure", async () => {
   ]);
   await expect(f.value()).rejects.toThrow("git worktree add failed: branch is locked");
 });
+
+test("uses a sanitized directory key while preserving the exact branch", async () => {
+  const exec = mock<GitExec>()
+    .mockResolvedValueOnce({ exitCode: 0, stdout: "", stderr: "" })
+    .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "" })
+    .mockResolvedValueOnce({ exitCode: 0, stdout: "", stderr: "" });
+
+  expect(
+    await prepareWorktree({
+      exec,
+      pathExists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(false),
+      gitRoot: "/repo/main",
+      project: "Repo",
+      name: "session",
+      branch: "feature/api",
+    }),
+  ).toBe("/repo/Repo-session");
+
+  expect(exec.mock.calls).toEqual([
+    [["git", "worktree", "list", "--porcelain"], { cwd: "/repo/main" }],
+    [
+      ["git", "show-ref", "--verify", "--quiet", "refs/heads/feature/api"],
+      { cwd: "/repo/main" },
+    ],
+    [
+      ["git", "worktree", "add", "-b", "feature/api", "/repo/Repo-session"],
+      { cwd: "/repo/main" },
+    ],
+  ]);
+});
+
+test("defaults the exact branch to the unsanitized directory key", async () => {
+  const exec = mock<GitExec>()
+    .mockResolvedValueOnce({ exitCode: 0, stdout: "", stderr: "" })
+    .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "" })
+    .mockResolvedValueOnce({ exitCode: 0, stdout: "", stderr: "" });
+
+  await prepareWorktree({
+    exec,
+    pathExists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(false),
+    gitRoot: "/repo/main",
+    project: "Repo",
+    name: "chore/improve",
+  });
+
+  expect(exec.mock.calls[2]?.[0]).toEqual([
+    "git",
+    "worktree",
+    "add",
+    "-b",
+    "chore/improve",
+    "/repo/Repo-chore-improve",
+  ]);
+});
+
+test("reuses a registered override branch at the derived target", async () => {
+  const exec = mock<GitExec>()
+    .mockResolvedValueOnce({
+      exitCode: 0,
+      stdout: "worktree /repo/Repo-session\nHEAD a\nbranch refs/heads/feature/api",
+      stderr: "",
+    })
+    .mockResolvedValueOnce({
+      exitCode: 0,
+      stdout: "/repo/Repo-session\n/repo/main/.git\n",
+      stderr: "",
+    })
+    .mockResolvedValueOnce({ exitCode: 0, stdout: "/repo/main/.git\n", stderr: "" })
+    .mockResolvedValueOnce({ exitCode: 0, stdout: "refs/heads/feature/api\n", stderr: "" });
+
+  expect(
+    await prepareWorktree({
+      exec,
+      pathExists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
+      realpath: async (path) => path,
+      gitRoot: "/repo/main",
+      project: "Repo",
+      name: "session",
+      branch: "feature/api",
+    }),
+  ).toBe("/repo/Repo-session");
+});
+
+test("rejects a derived target registered on another branch", async () => {
+  const exec = mock<GitExec>().mockResolvedValue({
+    exitCode: 0,
+    stdout: "worktree /repo/Repo-session\nHEAD a\nbranch refs/heads/main",
+    stderr: "",
+  });
+
+  await expect(
+    prepareWorktree({
+      exec,
+      pathExists: mock<(path: string) => Promise<boolean>>(),
+      gitRoot: "/repo/main",
+      project: "Repo",
+      name: "session",
+      branch: "feature/api",
+    }),
+  ).rejects.toThrow("expected feature/api, found main");
+});
