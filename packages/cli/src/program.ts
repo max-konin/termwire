@@ -92,7 +92,18 @@ export function createProgram(dependencies: ProgramDependencies): Command {
   program
     .command("up <name>")
     .option("-w, --worktree [wt-name]", "create or reuse a Git worktree")
-    .option("-b, --branch <name>", "create or switch to a Git branch")
+    .option("-b, --branch <name>", "select the exact Git branch")
+    .addHelpText(
+      "after",
+      `
+Branch and worktree selection:
+  Without -w, --branch switches the current checkout, creating the branch when absent.
+  With -w, the optional worktree name selects the directory; otherwise <name> is used.
+  --branch selects the branch; otherwise the worktree directory key is also the branch.
+  Slashes are preserved in Git branch names and sanitized only in worktree directory names.
+  Existing sessions attach without Git changes.
+`,
+    )
     .action(async (name: string, options: { worktree?: true | string; branch?: string }) => {
       if (options.worktree === "") {
         throw new Error("worktree name must not be empty");

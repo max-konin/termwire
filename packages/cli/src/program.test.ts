@@ -47,6 +47,11 @@ test("prints root and up help to injected stdout", async () => {
         "Usage: termwire up [options] <name>",
         "-w, --worktree [wt-name]",
         "-b, --branch <name>",
+        "Branch and worktree selection:",
+        "Without -w, --branch switches the current checkout",
+        "With -w, the optional worktree name selects the directory",
+        "Slashes are preserved in Git branch names",
+        "Existing sessions attach without Git changes",
       ],
     },
   ];
