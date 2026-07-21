@@ -1,5 +1,12 @@
 # @termwire/opencode-plugin
 
+## 0.1.2
+
+### Patch Changes
+
+- @termwire/tmux@0.1.2
+- @termwire/nvim@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

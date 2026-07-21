@@ -1,5 +1,14 @@
 # @termwire/cli
 
+## 0.1.2
+
+### Patch Changes
+
+- Add explicit Git branch selection to `termwire up`, preserve slashes in branch names, and document
+  the default branch and worktree derivation rules.
+  - @termwire/tmux@0.1.2
+  - @termwire/nvim@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
