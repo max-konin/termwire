@@ -158,9 +158,10 @@ test("wires runtime branch preparation before creating a new session", async () 
     createTmux: () => tmux,
     gitExec,
     cwd: () => "/repo",
-    mkdir: mock<(path: string, options: { recursive: true }) => Promise<unknown>>().mockResolvedValue(
-      undefined,
-    ),
+    mkdir:
+      mock<(path: string, options: { recursive: true }) => Promise<unknown>>().mockResolvedValue(
+        undefined,
+      ),
     pathExists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(false),
     unlink: mock<(path: string) => Promise<void>>().mockResolvedValue(),
   });

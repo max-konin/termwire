@@ -22,10 +22,7 @@ test("creates and switches to an absent local branch", async () => {
 
   await prepareBranch(exec, "/repo", "feature/api");
 
-  expect(exec.mock.calls[1]).toEqual([
-    ["git", "switch", "-c", "feature/api"],
-    { cwd: "/repo" },
-  ]);
+  expect(exec.mock.calls[1]).toEqual([["git", "switch", "-c", "feature/api"], { cwd: "/repo" }]);
 });
 
 test("reports an unexpected show-ref failure", async () => {

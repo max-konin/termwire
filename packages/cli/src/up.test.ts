@@ -468,9 +468,15 @@ test("does not clean up when stale socket removal fails before session creation"
 
 test("uses an explicit branch without changing the worktree directory key", async () => {
   const { tmux } = createWorkspaceTmux();
-  const prepareWorktree = mock<
-    (options: { gitRoot: string; project: string; name: string; branch: string }) => Promise<string>
-  >().mockResolvedValue("/repo-dev");
+  const prepareWorktree =
+    mock<
+      (options: {
+        gitRoot: string;
+        project: string;
+        name: string;
+        branch: string;
+      }) => Promise<string>
+    >().mockResolvedValue("/repo-dev");
 
   await up(
     { name: "dev", worktree: true, branch: "chore/improve" },
@@ -504,14 +510,15 @@ test("prepares an explicit branch in the current checkout", async () => {
       cwd: () => "/repo",
       findGitRoot: async () => "/repo",
       prepareBranch,
-      prepareWorktree: mock<
-        (options: {
-          gitRoot: string;
-          project: string;
-          name: string;
-          branch: string;
-        }) => Promise<string>
-      >(),
+      prepareWorktree:
+        mock<
+          (options: {
+            gitRoot: string;
+            project: string;
+            name: string;
+            branch: string;
+          }) => Promise<string>
+        >(),
       mkdir: async () => {},
       removeFile: async () => {},
       tmux,
@@ -533,14 +540,15 @@ test("rejects a branch request outside a Git repository", async () => {
         cwd: () => "/tmp/project",
         findGitRoot: async () => undefined,
         prepareBranch,
-        prepareWorktree: mock<
-          (options: {
-            gitRoot: string;
-            project: string;
-            name: string;
-            branch: string;
-          }) => Promise<string>
-        >(),
+        prepareWorktree:
+          mock<
+            (options: {
+              gitRoot: string;
+              project: string;
+              name: string;
+              branch: string;
+            }) => Promise<string>
+          >(),
         mkdir: async () => {},
         removeFile: async () => {},
         tmux,
@@ -561,14 +569,15 @@ test("rejects an empty direct branch request before checking tmux", async () => 
         cwd: () => "/repo",
         findGitRoot: async () => "/repo",
         prepareBranch: mock<(options: { cwd: string; name: string }) => Promise<void>>(),
-        prepareWorktree: mock<
-          (options: {
-            gitRoot: string;
-            project: string;
-            name: string;
-            branch: string;
-          }) => Promise<string>
-        >(),
+        prepareWorktree:
+          mock<
+            (options: {
+              gitRoot: string;
+              project: string;
+              name: string;
+              branch: string;
+            }) => Promise<string>
+          >(),
         mkdir: async () => {},
         removeFile: async () => {},
         tmux,

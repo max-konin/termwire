@@ -162,12 +162,9 @@ async function addWorktree(
   target: string,
   branch: string,
 ): Promise<void> {
-  const existing = await exec(
-    ["git", "show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
-    {
-      cwd: gitRoot,
-    },
-  );
+  const existing = await exec(["git", "show-ref", "--verify", "--quiet", `refs/heads/${branch}`], {
+    cwd: gitRoot,
+  });
   if (existing.exitCode !== 0 && existing.exitCode !== 1) {
     throw new Error(`git show-ref failed: ${existing.stderr}`);
   }

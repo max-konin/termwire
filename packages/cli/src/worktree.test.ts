@@ -448,14 +448,8 @@ test("uses a sanitized directory key while preserving the exact branch", async (
 
   expect(exec.mock.calls).toEqual([
     [["git", "worktree", "list", "--porcelain"], { cwd: "/repo/main" }],
-    [
-      ["git", "show-ref", "--verify", "--quiet", "refs/heads/feature/api"],
-      { cwd: "/repo/main" },
-    ],
-    [
-      ["git", "worktree", "add", "-b", "feature/api", "/repo/Repo-session"],
-      { cwd: "/repo/main" },
-    ],
+    [["git", "show-ref", "--verify", "--quiet", "refs/heads/feature/api"], { cwd: "/repo/main" }],
+    [["git", "worktree", "add", "-b", "feature/api", "/repo/Repo-session"], { cwd: "/repo/main" }],
   ]);
 });
 
