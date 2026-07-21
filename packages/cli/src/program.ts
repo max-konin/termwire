@@ -90,13 +90,18 @@ export function createProgram(dependencies: ProgramDependencies): Command {
   program
     .command("up <name>")
     .option("-w, --worktree [wt-name]", "create or reuse a Git worktree")
-    .action(async (name: string, options: { worktree?: true | string }) => {
+    .option("-b, --branch <name>", "create or switch to a Git branch")
+    .action(async (name: string, options: { worktree?: true | string; branch?: string }) => {
       if (options.worktree === "") {
         throw new Error("worktree name must not be empty");
+      }
+      if (options.branch === "") {
+        throw new Error("branch name must not be empty");
       }
       await dependencies.up({
         name,
         ...(options.worktree === undefined ? {} : { worktree: options.worktree }),
+        ...(options.branch === undefined ? {} : { branch: options.branch }),
       });
     });
 

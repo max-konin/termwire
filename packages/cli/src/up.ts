@@ -4,6 +4,7 @@ import { createIdentity } from "./identity";
 export interface UpRequest {
   name: string;
   worktree?: true | string;
+  branch?: string;
 }
 
 export interface UpDependencies {

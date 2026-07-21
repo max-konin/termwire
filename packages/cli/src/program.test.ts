@@ -13,6 +13,15 @@ test("normalizes supported up worktree forms", async () => {
     { argv: ["up", "dev", "--worktree", "feature"], request: { name: "dev", worktree: "feature" } },
     { argv: ["up", "dev", "-wfeature"], request: { name: "dev", worktree: "feature" } },
     { argv: ["up", "dev", "-w", "feature"], request: { name: "dev", worktree: "feature" } },
+    { argv: ["up", "dev", "-b", "feature/api"], request: { name: "dev", branch: "feature/api" } },
+    {
+      argv: ["up", "dev", "-w", "-b", "feature/api"],
+      request: { name: "dev", worktree: true, branch: "feature/api" },
+    },
+    {
+      argv: ["up", "dev", "--worktree=legacy", "--branch=feature/api"],
+      request: { name: "dev", worktree: "legacy", branch: "feature/api" },
+    },
   ];
 
   for (const { argv, request } of cases) {
@@ -34,7 +43,11 @@ test("prints root and up help to injected stdout", async () => {
     { argv: ["--help"], expected: ["Usage: termwire", "up [options] <name>"] },
     {
       argv: ["up", "--help"],
-      expected: ["Usage: termwire up [options] <name>", "-w, --worktree [wt-name]"],
+      expected: [
+        "Usage: termwire up [options] <name>",
+        "-w, --worktree [wt-name]",
+        "-b, --branch <name>",
+      ],
     },
   ];
 
@@ -54,8 +67,8 @@ test("prints root and up help to injected stdout", async () => {
   }
 });
 
-test("reports missing names and unknown options as usage errors", async () => {
-  const cases = [["up"], ["up", "dev", "--unknown"]];
+test("reports missing names and invalid options as usage errors", async () => {
+  const cases = [["up"], ["up", "dev", "--unknown"], ["up", "dev", "--branch"]];
 
   for (const argv of cases) {
     const up = mock<(request: UpRequest) => Promise<void>>().mockResolvedValue();
@@ -140,6 +153,17 @@ test("rejects an explicitly empty worktree option before calling up", async () =
   expect(await run(["up", "dev", "--worktree="], { up, writeError, writeOutput })).toBe(1);
 
   expect(writeError).toHaveBeenCalledWith("termwire: worktree name must not be empty\n");
+  expect(up).not.toHaveBeenCalled();
+});
+
+test("rejects an explicitly empty branch option before calling up", async () => {
+  const up = mock<(request: UpRequest) => Promise<void>>().mockResolvedValue();
+  const writeError = mock<(message: string) => void>();
+  const writeOutput = mock<(message: string) => void>();
+
+  expect(await run(["up", "dev", "--branch="], { up, writeError, writeOutput })).toBe(1);
+
+  expect(writeError).toHaveBeenCalledWith("termwire: branch name must not be empty\n");
   expect(up).not.toHaveBeenCalled();
 });
 
