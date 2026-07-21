@@ -5,7 +5,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "termwire": "./dist/bin/termwire.js"
+    "termwire": "dist/bin/termwire.js"
   },
   "exports": {
     ".": {

@@ -80,3 +80,11 @@ test("keeps publishable workspace manifests aligned and installable", async () =
     }
   }
 });
+
+test("uses an npm-valid CLI executable path", async () => {
+  const manifest = (await Bun.file(resolve(root, "packages/cli/package.json")).json()) as {
+    bin?: Record<string, string>;
+  };
+
+  expect(manifest.bin).toEqual({ termwire: "dist/bin/termwire.js" });
+});
