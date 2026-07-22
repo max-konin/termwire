@@ -18,6 +18,11 @@ const packages = [
     directory: "packages/opencode-plugin",
     internalDependencies: ["@termwire/nvim", "@termwire/tmux"],
   },
+  {
+    name: "@termwire/mcp",
+    directory: "packages/mcp",
+    internalDependencies: ["@termwire/nvim", "@termwire/tmux"],
+  },
 ];
 
 test("keeps publishable workspace manifests aligned and installable", async () => {

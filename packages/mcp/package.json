@@ -1,0 +1,45 @@
+{
+  "name": "@termwire/mcp",
+  "version": "0.1.2",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "termwire-mcp": "dist/bin/termwire-mcp.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/max-konin/termwire.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/max-konin/termwire#readme",
+  "bugs": {
+    "url": "https://github.com/max-konin/termwire/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@termwire/nvim": "^0.1.2",
+    "@termwire/tmux": "^0.1.2",
+    "zod": "^4.0.0"
+  }
+}
