@@ -1,6 +1,6 @@
 {
   "name": "@termwire/mcp",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -38,8 +38,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
-    "@termwire/nvim": "^0.1.2",
-    "@termwire/tmux": "^0.1.2",
+    "@termwire/nvim": "^0.2.0",
+    "@termwire/tmux": "^0.2.0",
     "zod": "^4.0.0"
   }
 }
