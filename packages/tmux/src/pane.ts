@@ -14,7 +14,7 @@ export interface SplitPaneOptions {
 export interface RespawnPaneOptions {
   target: string;
   cwd?: string;
-  command: readonly string[];
+  command?: readonly string[];
   environment?: Record<string, string | undefined>;
 }
 

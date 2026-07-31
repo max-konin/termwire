@@ -8,9 +8,10 @@ termwire --help
 termwire up dev
 ```
 
-The project's main entry point — the `termwire` command. Orchestrates the
-other packages. Fully **stateless**: no config files, no state files —
-workspace identity lives in environment variables set by `termwire up <name>`.
+The project's main entry point — the `termwire` command. It orchestrates the
+other packages. Runtime workspace identity is stateless and lives in the
+environment variables set by `termwire up <name>`; layout configuration is
+optional JSONC, not persistent workspace state.
 
 ## Why it exists
 
@@ -33,22 +34,127 @@ the explicit `termwire_open({ path, line? })` OpenCode plugin tool.
 selects the directory key; otherwise `<name>` does. `--branch` selects the exact Git branch when
 present; otherwise the worktree directory key is also the branch name. Slashes are preserved in
 Git branch names and replaced only in filesystem-safe worktree directory names. Without `-w`, Git
-is changed only when `--branch` is present. Existing tmux sessions attach without Git mutations.
+is changed only when `--branch` is present. Existing tmux sessions attach without Git mutations or
+rereading/reconciling configuration.
 
-## How it works
+## Layout configuration
 
-- `up <name>` creates `editor` (`nvim --listen <socket>`) and free `shell`
-  windows. Final processes receive `TERMWIRE_SESSION`, `TERMWIRE_SOCKET`,
-  and `TERMWIRE_EDITOR_PANE`.
-- OpenCode is not started automatically. Users may start it in the shell and
-  reshape the workspace with tmux.
-- Existing sessions attach immediately without branch or worktree mutation.
-- There are no config files or persistent state.
+TermWire discovers optional JSONC files in this order:
+
+1. Global: `$XDG_CONFIG_HOME/termwire/config.jsonc`, or
+   `~/.config/termwire/config.jsonc` when `XDG_CONFIG_HOME` is unset.
+2. Project: `<resolved-workspace-git-root>/.termwire.jsonc`. For `up -w`, this
+   is the resolved target worktree's file, not the invoking checkout's file.
+
+Both present files are validated. Project `windows` fully replace global
+`windows`; they are never merged. A version-only project file falls through to
+global windows, and a version-only global file falls through to the exact
+default layout:
+
+```json
+{
+  "windows": [
+    { "name": "editor", "panes": [{ "id": "editor", "role": "editor" }] },
+    { "name": "shell", "panes": [{ "id": "shell" }] }
+  ]
+}
+```
+
+When neither source provides `windows`, that same editor-then-shell two-window
+default is used.
+
+### Schema
+
+Each configuration root is an object with required numeric `"version": 1`,
+optional nonempty-string `"$schema"` for future compatibility, and optional
+`windows`; unknown keys are rejected at every level. `windows`, when provided,
+is a nonempty array of uniquely named window objects. Each window has only
+`name` and a nonempty `panes` array. Pane ids are nonempty and unique within
+their window.
+
+A pane may contain only `id`, `role`, `command`, `splitFrom`, `direction`, and
+`sizePercent`:
+
+- `role`, when present, is only `"editor"`. Exactly one editor exists across
+  the effective layout, and it cannot have a `command`.
+- `command`, when present, is a nonempty argv array of nonempty strings. Shell
+  command strings are not supported.
+- The first pane of a window has no split fields. Every later pane must name an
+  earlier pane in the same window with `splitFrom` and set `direction` to
+  `"horizontal"` or `"vertical"`. An optional `sizePercent` is an integer from
+  1 through 99.
+
+This release provides no official JSON Schema file or URL, generation command,
+publishing, autocomplete, or editor integration. `$schema` is accepted for
+future compatibility only; it does not point to a TermWire-provided artifact.
+
+Panes are created in declaration order. This valid multi-window example has one
+editor and demonstrates argv commands and ordered splits:
+
+```jsonc
+// ~/.config/termwire/config.jsonc or .termwire.jsonc
+{
+  "version": 1,
+  "windows": [
+    {
+      "name": "editor",
+      "panes": [
+        { "id": "editor", "role": "editor" },
+        {
+          "id": "watch",
+          "splitFrom": "editor",
+          "direction": "vertical",
+          "sizePercent": 35,
+          "command": ["bun", "run", "dev"],
+        },
+      ],
+    },
+    {
+      "name": "shell",
+      "panes": [
+        { "id": "shell", "command": ["zsh", "-l"] },
+        {
+          "id": "tests",
+          "splitFrom": "shell",
+          "direction": "horizontal",
+          "sizePercent": 40,
+          "command": ["bun", "test"],
+        },
+      ],
+    },
+  ],
+}
+```
+
+JSONC comments and trailing commas are accepted. There is no interpolation,
+custom pane cwd, custom pane environment, shell-string command syntax, or
+configuration/state persistence beyond reading these optional files for a new
+session.
+
+### Errors and session behavior
+
+JSONC parse errors identify the source and one-based line and column. Schema
+errors identify the source and JSON path; unreadable existing files retain their
+original error as the cause. After workspace/worktree resolution, configuration
+is loaded and validated before socket or tmux session side effects. Once a new
+session exists, layout or attach failure triggers best-effort session cleanup
+while preserving the original failure.
+
+## Runtime behavior
+
+- `up <name>` starts the editor as `nvim --listen <socket>` and uses a pane's
+  argv command, or tmux's default shell when an ordinary pane has no command.
+  Final processes receive `TERMWIRE_SESSION`, `TERMWIRE_SOCKET`, and
+  `TERMWIRE_EDITOR_PANE`.
+- OpenCode is not started automatically. Users may start it in a shell pane and
+  reshape the workspace with tmux after creation.
 - The CLI has no shell-facing `open` command and does not need to be in `PATH`
   for the plugin: the plugin composes the nvim and tmux adapters directly.
 
 ## Dependencies
 
-Commander 15 is the CLI runtime dependency for parsing `up`. `@termwire/tmux`
-and `@termwire/nvim` are thin adapters over their binaries; the CLI owns
-workspace policy and orchestration.
+Commander 15 parses `up`; `jsonc-parser` handles JSONC parsing and diagnostics;
+Zod 4 provides strict structural config validation. All three are direct runtime
+dependencies.
+`@termwire/tmux` and `@termwire/nvim` are thin adapters over their binaries;
+the CLI owns workspace policy and orchestration.

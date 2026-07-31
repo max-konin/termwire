@@ -1,5 +1,8 @@
 import type { createTmux } from "@termwire/tmux";
+import type { LayoutConfig } from "./config-schema";
+import type { LoadedConfig } from "./config-types";
 import { createIdentity } from "./identity";
+import type { createLayout } from "./layout";
 
 export interface UpRequest {
   name: string;
@@ -20,6 +23,13 @@ export interface UpDependencies {
   mkdir: (path: string) => Promise<void>;
   removeFile: (path: string) => Promise<void>;
   tmux: ReturnType<typeof createTmux>;
+  loadGlobalConfig: () => Promise<LoadedConfig | undefined>;
+  loadProjectConfig: (gitRoot: string) => Promise<LoadedConfig | undefined>;
+  resolveLayout: (
+    globalConfig: LoadedConfig | undefined,
+    projectConfig: LoadedConfig | undefined,
+  ) => LayoutConfig;
+  createLayout: typeof createLayout;
 }
 
 export async function up(request: UpRequest, dependencies: UpDependencies): Promise<void> {
@@ -40,28 +50,40 @@ export async function up(request: UpRequest, dependencies: UpDependencies): Prom
   }
 
   const workspace = await resolveWorkspace(request, dependencies, identity, gitRoot, cwd);
+  const layout = await loadEffectiveLayout(workspace, dependencies);
 
   await dependencies.mkdir("/tmp/termwire");
   await dependencies.removeFile(identity.socket);
-  const editor = await dependencies.tmux.newSession({
+  const initial = await dependencies.tmux.newSession({
     session: identity.session,
-    name: "editor",
+    name: layout.windows[0].name,
     cwd: workspace,
   });
-  const environment = createWorkspaceEnvironment(identity, editor.paneId);
   try {
-    await configureWorkspaceSession({
+    await dependencies.createLayout({
       tmux: dependencies.tmux,
-      identity,
+      session: identity.session,
       workspace,
-      editor,
-      environment,
+      socket: identity.socket,
+      layout,
+      initial,
     });
+    await dependencies.tmux.attach(identity.session);
   } catch (error) {
     await bestEffortKillSession(dependencies.tmux, identity.session);
     throw error;
   }
-  await dependencies.tmux.attach(identity.session);
+}
+
+async function loadEffectiveLayout(
+  workspace: string,
+  dependencies: UpDependencies,
+): Promise<LayoutConfig> {
+  const globalConfig = await dependencies.loadGlobalConfig();
+  const gitRoot = await dependencies.findGitRoot(workspace);
+  const projectConfig =
+    gitRoot === undefined ? undefined : await dependencies.loadProjectConfig(gitRoot);
+  return dependencies.resolveLayout(globalConfig, projectConfig);
 }
 
 async function resolveWorkspace(
@@ -90,43 +112,6 @@ async function resolveWorkspace(
     name,
     branch: request.branch ?? name,
   });
-}
-
-function createWorkspaceEnvironment(
-  identity: ReturnType<typeof createIdentity>,
-  editorPane: string,
-) {
-  return {
-    TERMWIRE_SESSION: identity.session,
-    TERMWIRE_SOCKET: identity.socket,
-    TERMWIRE_EDITOR_PANE: editorPane,
-  };
-}
-
-async function configureWorkspaceSession(options: {
-  tmux: ReturnType<typeof createTmux>;
-  identity: ReturnType<typeof createIdentity>;
-  workspace: string;
-  editor: { windowId: string; paneId: string };
-  environment: Record<string, string>;
-}): Promise<void> {
-  for (const [key, value] of Object.entries(options.environment)) {
-    await options.tmux.setEnvironment(options.identity.session, key, value);
-  }
-  await options.tmux.respawnPane({
-    target: options.editor.paneId,
-    cwd: options.workspace,
-    command: ["nvim", "--listen", options.identity.socket],
-    environment: options.environment,
-  });
-  await options.tmux.newWindow({
-    target: options.identity.session,
-    name: "shell",
-    cwd: options.workspace,
-    environment: options.environment,
-  });
-  await options.tmux.selectWindow(options.editor.windowId);
-  await options.tmux.selectPane(options.editor.paneId);
 }
 
 async function bestEffortKillSession(

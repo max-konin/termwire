@@ -1,7 +1,16 @@
-import { mkdir as mkdirDirectory, stat, unlink as unlinkFile } from "node:fs/promises";
+import {
+  mkdir as mkdirDirectory,
+  readFile as readFileFromDisk,
+  stat,
+  unlink as unlinkFile,
+} from "node:fs/promises";
+import { homedir as getHomeDirectory } from "node:os";
 import { createTmux } from "@termwire/tmux";
 import { Command, CommanderError } from "commander";
 import { prepareBranch } from "./branch";
+import { createConfigLoader } from "./config-loader";
+import { resolveLayout } from "./config-validation";
+import { createLayout } from "./layout";
 import { type UpRequest, up } from "./up";
 import { findGitRoot, type GitExec, prepareWorktree } from "./worktree";
 
@@ -14,6 +23,9 @@ export interface ProgramDependencies {
 export interface RuntimeDependencies {
   createTmux: () => ReturnType<typeof createTmux>;
   cwd: () => string;
+  env: Record<string, string | undefined>;
+  homedir: () => string;
+  readFile: (path: string, encoding: "utf8") => Promise<string>;
   gitExec: GitExec;
   mkdir: (path: string, options: { recursive: true }) => Promise<unknown>;
   pathExists: (path: string) => Promise<boolean>;
@@ -52,6 +64,10 @@ export async function removeStaleSocket(
 export function createRuntimeUp(dependencies: Partial<RuntimeDependencies> = {}) {
   const tmux = (dependencies.createTmux ?? (() => createTmux()))();
   const cwd = dependencies.cwd ?? (() => process.cwd());
+  const env = dependencies.env ?? process.env;
+  const homedir = dependencies.homedir ?? getHomeDirectory;
+  const readFile =
+    dependencies.readFile ?? ((path: string, encoding: "utf8") => readFileFromDisk(path, encoding));
   const gitExec = dependencies.gitExec ?? executeGit;
   const mkdir = dependencies.mkdir ?? mkdirDirectory;
   const pathExists =
@@ -66,6 +82,9 @@ export function createRuntimeUp(dependencies: Partial<RuntimeDependencies> = {})
       }
     });
   const unlink = dependencies.unlink ?? unlinkFile;
+  const loader = createConfigLoader({ env, homedir, exists: pathExists, readFile });
+  const loadGlobalConfig = loader.loadGlobal;
+  const loadProjectConfig = loader.loadProject;
 
   return (request: UpRequest) =>
     up(request, {
@@ -78,6 +97,10 @@ export function createRuntimeUp(dependencies: Partial<RuntimeDependencies> = {})
       },
       removeFile: (path) => removeStaleSocket(path, unlink),
       tmux,
+      loadGlobalConfig,
+      loadProjectConfig,
+      resolveLayout,
+      createLayout,
     });
 }
 

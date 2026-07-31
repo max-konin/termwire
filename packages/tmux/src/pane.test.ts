@@ -225,6 +225,21 @@ describe("respawnPane", () => {
     ]);
   });
 
+  test("respawns a pane with tmux's default shell when command is absent", async () => {
+    const exec = mock(async (..._args: Parameters<Exec>) => result(0));
+
+    expect(
+      await respawnPane(exec, {
+        target: "%3",
+        cwd: "/repo",
+        environment: { PANE_ROLE: "shell" },
+      }),
+    ).toBeUndefined();
+    expect(exec.mock.calls).toEqual([
+      [["tmux", "respawn-pane", "-k", "-t", "%3", "-c", "/repo", "-e", "PANE_ROLE=shell"]],
+    ]);
+  });
+
   test.each([
     [{ target: "", command: ["nvim"] }, "target"],
     [{ target: "%3", cwd: "", command: ["nvim"] }, "cwd"],

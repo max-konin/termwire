@@ -1,51 +1,15 @@
 import { expect, mock, test } from "bun:test";
 import type { createTmux } from "@termwire/tmux";
-import { up } from "./up";
+import type { LayoutConfig } from "./config-schema";
+import type { LoadedConfig } from "./config-types";
+import { createLayout } from "./layout";
+import { up as runUp, type UpDependencies } from "./up";
 
-const createWorkspaceTmux = (sessionExists = false) => {
-  const hasSession =
-    mock<ReturnType<typeof createTmux>["hasSession"]>().mockResolvedValue(sessionExists);
-  const newSession = mock<ReturnType<typeof createTmux>["newSession"]>().mockResolvedValue({
-    windowId: "@1",
-    paneId: "%1",
-  });
-  const newWindow = mock<ReturnType<typeof createTmux>["newWindow"]>().mockResolvedValue({
-    windowId: "@2",
-    paneId: "%2",
-  });
-  const setEnvironment =
-    mock<ReturnType<typeof createTmux>["setEnvironment"]>().mockResolvedValue();
-  const respawnPane = mock<ReturnType<typeof createTmux>["respawnPane"]>().mockResolvedValue();
-  const selectWindow = mock<ReturnType<typeof createTmux>["selectWindow"]>().mockResolvedValue();
-  const selectPane = mock<ReturnType<typeof createTmux>["selectPane"]>().mockResolvedValue();
-  const attach = mock<ReturnType<typeof createTmux>["attach"]>().mockResolvedValue();
-  const sendKeys = mock<ReturnType<typeof createTmux>["sendKeys"]>().mockResolvedValue();
-  const killSession = mock<ReturnType<typeof createTmux>["killSession"]>().mockResolvedValue();
-
-  return {
-    tmux: {
-      hasSession,
-      newSession,
-      newWindow,
-      setEnvironment,
-      respawnPane,
-      selectWindow,
-      selectPane,
-      attach,
-      sendKeys,
-      killSession,
-    } as unknown as ReturnType<typeof createTmux>,
-    hasSession,
-    newSession,
-    newWindow,
-    setEnvironment,
-    respawnPane,
-    selectWindow,
-    selectPane,
-    attach,
-    sendKeys,
-    killSession,
-  };
+const defaultLayout: LayoutConfig = {
+  windows: [
+    { name: "editor", panes: [{ id: "editor", role: "editor" }] },
+    { name: "shell", panes: [{ id: "shell" }] },
+  ],
 };
 
 test("attaches immediately to an existing session without workspace side effects", async () => {
@@ -85,6 +49,214 @@ test("attaches immediately to an existing session without workspace side effects
   expect(mkdir).not.toHaveBeenCalled();
   expect(removeFile).not.toHaveBeenCalled();
 });
+
+test("attaches to an existing session without reading layout configuration", async () => {
+  const hasSession = mock<(session: string) => Promise<boolean>>().mockResolvedValue(true);
+  const attach = mock<(session: string) => Promise<void>>().mockResolvedValue();
+  const loadGlobalConfig = mock<() => Promise<undefined>>().mockResolvedValue(undefined);
+  const loadProjectConfig =
+    mock<(gitRoot: string) => Promise<undefined>>().mockResolvedValue(undefined);
+
+  await up(
+    { name: "dev" },
+    {
+      cwd: () => "/repo",
+      findGitRoot: async () => "/repo",
+      prepareBranch: async () => {},
+      prepareWorktree: async () => "/repo-worktree",
+      mkdir: async () => {},
+      removeFile: async () => {},
+      tmux: { hasSession, attach } as unknown as ReturnType<typeof createTmux>,
+      loadGlobalConfig,
+      loadProjectConfig,
+    },
+  );
+
+  expect(attach).toHaveBeenCalledWith("repo-dev");
+  expect(loadGlobalConfig).not.toHaveBeenCalled();
+  expect(loadProjectConfig).not.toHaveBeenCalled();
+});
+
+test.each([
+  {
+    request: { name: "dev" },
+    cwd: "/repo/packages/cli",
+    workspace: "/repo/packages/cli",
+    workspaceRoot: "/repo",
+  },
+  {
+    request: { name: "dev", worktree: "feature" as const },
+    cwd: "/repo",
+    workspace: "/worktrees/repo-feature",
+    workspaceRoot: "/worktrees/repo-feature",
+  },
+])(
+  "loads project configuration from the resolved workspace root",
+  async ({ request, cwd, workspace, workspaceRoot }) => {
+    const { tmux } = createWorkspaceTmux();
+    const findGitRoot = mock<(path: string) => Promise<string | undefined>>().mockImplementation(
+      async (path) => (path === workspace ? workspaceRoot : "/repo"),
+    );
+    const loadGlobalConfig = mock<() => Promise<undefined>>().mockResolvedValue(undefined);
+    const loadProjectConfig =
+      mock<(gitRoot: string) => Promise<undefined>>().mockResolvedValue(undefined);
+    const resolveLayout = mock<
+      (
+        globalConfig: LoadedConfig | undefined,
+        projectConfig: LoadedConfig | undefined,
+      ) => LayoutConfig
+    >().mockReturnValue({
+      windows: [{ name: "editor", panes: [{ id: "editor", role: "editor" }] }],
+    });
+
+    await up(request, {
+      cwd: () => cwd,
+      findGitRoot,
+      prepareBranch: async () => {},
+      prepareWorktree: async () => workspace,
+      mkdir: async () => {},
+      removeFile: async () => {},
+      tmux,
+      loadGlobalConfig,
+      loadProjectConfig,
+      resolveLayout,
+    });
+
+    expect(findGitRoot).toHaveBeenLastCalledWith(workspace);
+    expect(loadProjectConfig).toHaveBeenCalledWith(workspaceRoot);
+  },
+);
+
+test("validates layout after preparing a worktree but before tmux side effects", async () => {
+  const { tmux, newSession, killSession } = createWorkspaceTmux();
+  const configError = new Error("invalid layout");
+  const prepareWorktree =
+    mock<
+      (options: {
+        gitRoot: string;
+        project: string;
+        name: string;
+        branch: string;
+      }) => Promise<string>
+    >().mockResolvedValue("/worktrees/repo-feature");
+  const mkdir = mock<(path: string) => Promise<void>>().mockResolvedValue();
+  const removeFile = mock<(path: string) => Promise<void>>().mockResolvedValue();
+  const resolveLayout = mock<
+    (
+      globalConfig: LoadedConfig | undefined,
+      projectConfig: LoadedConfig | undefined,
+    ) => LayoutConfig
+  >().mockImplementation(() => {
+    throw configError;
+  });
+
+  await expect(
+    up(
+      { name: "dev", worktree: "feature" },
+      {
+        cwd: () => "/repo",
+        findGitRoot: async (path) => (path === "/repo" ? "/repo" : "/worktrees/repo-feature"),
+        prepareBranch: async () => {},
+        prepareWorktree,
+        mkdir,
+        removeFile,
+        tmux,
+        loadGlobalConfig: async () => undefined,
+        loadProjectConfig: async () => undefined,
+        resolveLayout,
+      },
+    ),
+  ).rejects.toBe(configError);
+
+  expect(prepareWorktree).toHaveBeenCalled();
+  expect(mkdir).not.toHaveBeenCalled();
+  expect(removeFile).not.toHaveBeenCalled();
+  expect(newSession).not.toHaveBeenCalled();
+  expect(killSession).not.toHaveBeenCalled();
+});
+
+test("creates the initial session from the effective layout and hands it to createLayout", async () => {
+  const { tmux, newSession } = createWorkspaceTmux();
+  const layout: LayoutConfig = {
+    windows: [{ name: "custom", panes: [{ id: "editor", role: "editor" }] }],
+  };
+  const createLayoutMock = mock<typeof createLayout>().mockResolvedValue({
+    editor: { windowId: "@1", paneId: "%1" },
+    environment: {
+      TERMWIRE_SESSION: "repo-dev",
+      TERMWIRE_SOCKET: "/tmp/termwire/repo-dev.sock",
+      TERMWIRE_EDITOR_PANE: "%1",
+    },
+  });
+
+  await up(
+    { name: "dev" },
+    {
+      cwd: () => "/repo",
+      findGitRoot: async () => "/repo",
+      prepareBranch: async () => {},
+      prepareWorktree: async () => "/worktrees/repo-feature",
+      mkdir: async () => {},
+      removeFile: async () => {},
+      tmux,
+      loadGlobalConfig: async () => undefined,
+      loadProjectConfig: async () => undefined,
+      resolveLayout: () => layout,
+      createLayout: createLayoutMock,
+    },
+  );
+
+  expect(newSession).toHaveBeenCalledWith({ session: "repo-dev", name: "custom", cwd: "/repo" });
+  expect(createLayoutMock).toHaveBeenCalledWith({
+    tmux,
+    session: "repo-dev",
+    workspace: "/repo",
+    socket: "/tmp/termwire/repo-dev.sock",
+    layout,
+    initial: { windowId: "@1", paneId: "%1" },
+  });
+});
+
+test.each([
+  { failure: "createLayout", cleanupFails: false },
+  { failure: "attach", cleanupFails: false },
+  { failure: "createLayout", cleanupFails: true },
+] as const)(
+  "cleans up and preserves the original error when %s fails",
+  async ({ failure, cleanupFails }) => {
+    const { tmux, attach, killSession } = createWorkspaceTmux();
+    const setupError = new Error(`${failure} failed`);
+    const createLayoutMock = mock<typeof createLayout>().mockResolvedValue({
+      editor: { windowId: "@1", paneId: "%1" },
+      environment: {
+        TERMWIRE_SESSION: "repo-dev",
+        TERMWIRE_SOCKET: "/tmp/termwire/repo-dev.sock",
+        TERMWIRE_EDITOR_PANE: "%1",
+      },
+    });
+    if (failure === "createLayout") createLayoutMock.mockRejectedValue(setupError);
+    if (failure === "attach") attach.mockRejectedValue(setupError);
+    if (cleanupFails) killSession.mockRejectedValue(new Error("cleanup failed"));
+
+    await expect(
+      up(
+        { name: "dev" },
+        {
+          cwd: () => "/repo",
+          findGitRoot: async () => "/repo",
+          prepareBranch: async () => {},
+          prepareWorktree: async () => "/worktrees/repo-feature",
+          mkdir: async () => {},
+          removeFile: async () => {},
+          tmux,
+          createLayout: createLayoutMock,
+        },
+      ),
+    ).rejects.toBe(setupError);
+
+    expect(killSession).toHaveBeenCalledWith("repo-dev");
+  },
+);
 
 test("uses the original cwd when no worktree is requested", async () => {
   const { tmux, newSession } = createWorkspaceTmux();
@@ -367,7 +539,6 @@ test("creates the default editor and shell workspace protocol", async () => {
     target: "repo-dev",
     name: "shell",
     cwd: "/repo",
-    environment,
   });
   expect(selectWindow).toHaveBeenCalledWith("@1");
   expect(selectPane).toHaveBeenCalledWith("%1");
@@ -378,11 +549,12 @@ test("creates the default editor and shell workspace protocol", async () => {
     "mkdir",
     "removeFile",
     "newSession",
+    "newWindow",
     "setEnvironment:TERMWIRE_SESSION",
     "setEnvironment:TERMWIRE_SOCKET",
     "setEnvironment:TERMWIRE_EDITOR_PANE",
     "respawnPane",
-    "newWindow",
+    "respawnPane",
     "selectWindow",
     "selectPane",
     "attach",
@@ -586,3 +758,86 @@ test("rejects an empty direct branch request before checking tmux", async () => 
   ).rejects.toThrow("branch name must not be empty");
   expect(hasSession).not.toHaveBeenCalled();
 });
+
+function createUpDependencies(
+  dependencies: Omit<
+    UpDependencies,
+    "loadGlobalConfig" | "loadProjectConfig" | "resolveLayout" | "createLayout"
+  > &
+    Partial<
+      Pick<
+        UpDependencies,
+        "loadGlobalConfig" | "loadProjectConfig" | "resolveLayout" | "createLayout"
+      >
+    >,
+): UpDependencies {
+  return {
+    loadGlobalConfig: async () => undefined,
+    loadProjectConfig: async () => undefined,
+    resolveLayout: () => defaultLayout,
+    createLayout,
+    ...dependencies,
+  };
+}
+
+function up(
+  request: Parameters<typeof runUp>[0],
+  dependencies: Omit<
+    UpDependencies,
+    "loadGlobalConfig" | "loadProjectConfig" | "resolveLayout" | "createLayout"
+  > &
+    Partial<
+      Pick<
+        UpDependencies,
+        "loadGlobalConfig" | "loadProjectConfig" | "resolveLayout" | "createLayout"
+      >
+    >,
+): ReturnType<typeof runUp> {
+  return runUp(request, createUpDependencies(dependencies));
+}
+
+function createWorkspaceTmux(sessionExists = false) {
+  const hasSession =
+    mock<ReturnType<typeof createTmux>["hasSession"]>().mockResolvedValue(sessionExists);
+  const newSession = mock<ReturnType<typeof createTmux>["newSession"]>().mockResolvedValue({
+    windowId: "@1",
+    paneId: "%1",
+  });
+  const newWindow = mock<ReturnType<typeof createTmux>["newWindow"]>().mockResolvedValue({
+    windowId: "@2",
+    paneId: "%2",
+  });
+  const setEnvironment =
+    mock<ReturnType<typeof createTmux>["setEnvironment"]>().mockResolvedValue();
+  const respawnPane = mock<ReturnType<typeof createTmux>["respawnPane"]>().mockResolvedValue();
+  const selectWindow = mock<ReturnType<typeof createTmux>["selectWindow"]>().mockResolvedValue();
+  const selectPane = mock<ReturnType<typeof createTmux>["selectPane"]>().mockResolvedValue();
+  const attach = mock<ReturnType<typeof createTmux>["attach"]>().mockResolvedValue();
+  const sendKeys = mock<ReturnType<typeof createTmux>["sendKeys"]>().mockResolvedValue();
+  const killSession = mock<ReturnType<typeof createTmux>["killSession"]>().mockResolvedValue();
+
+  return {
+    tmux: {
+      hasSession,
+      newSession,
+      newWindow,
+      setEnvironment,
+      respawnPane,
+      selectWindow,
+      selectPane,
+      attach,
+      sendKeys,
+      killSession,
+    } as unknown as ReturnType<typeof createTmux>,
+    hasSession,
+    newSession,
+    newWindow,
+    setEnvironment,
+    respawnPane,
+    selectWindow,
+    selectPane,
+    attach,
+    sendKeys,
+    killSession,
+  };
+}

@@ -2,7 +2,15 @@
   "$schema": "https://unpkg.com/@changesets/config@3/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [["@termwire/tmux", "@termwire/nvim", "@termwire/cli", "@termwire/opencode-plugin"]],
+  "fixed": [
+    [
+      "@termwire/tmux",
+      "@termwire/nvim",
+      "@termwire/cli",
+      "@termwire/opencode-plugin",
+      "@termwire/mcp"
+    ]
+  ],
   "linked": [],
   "access": "public",
   "baseBranch": "master",

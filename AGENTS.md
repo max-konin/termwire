@@ -24,7 +24,8 @@
 - Treat package READMEs, `PDR.md`, and `ROADMAP.md` as design intent, not implemented behavior.
 - The CLI currently owns only `up <name>` (`-w/--worktree`); there is no shell-facing `open`
   command. File opening is the explicit OpenCode plugin tool; `doctor`, `status`, `files`,
-  `open-last`, config files, and persistence are not implemented.
+  `open-last`, and persistent workspace state are not implemented. Optional global/project JSONC
+  files configure only the windows and panes created for a new session.
 - Workspace identity is stateless and environment-based:
   `TERMWIRE_SESSION`, `TERMWIRE_SOCKET`, and `TERMWIRE_EDITOR_PANE`.
 - Keep adapters testable through injectable `exec`; tests must not require real tmux or Neovim

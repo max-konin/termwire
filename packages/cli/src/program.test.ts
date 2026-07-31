@@ -102,6 +102,74 @@ test("presents up failures without a stack trace", async () => {
   expect(writeError).toHaveBeenCalledWith("termwire: worktree requires a Git repository\n");
 });
 
+test("does not read config files when attaching an existing runtime session", async () => {
+  const hasSession = mock<(session: string) => Promise<boolean>>().mockResolvedValue(true);
+  const attach = mock<(session: string) => Promise<void>>().mockResolvedValue();
+  const pathExists = mock<(path: string) => Promise<boolean>>().mockResolvedValue(true);
+  const readFile =
+    mock<(path: string, encoding: "utf8") => Promise<string>>().mockResolvedValue(
+      '{ "version": 1 }',
+    );
+  const runtimeUp = createRuntimeUp({
+    createTmux: () => ({ hasSession, attach }) as unknown as ReturnType<typeof createTmuxAdapter>,
+    cwd: () => "/repo",
+    env: { XDG_CONFIG_HOME: "/xdg" },
+    homedir: () => "/home/max",
+    readFile,
+    pathExists,
+    gitExec: mock<GitExec>().mockResolvedValue({ exitCode: 0, stdout: "/repo\n", stderr: "" }),
+  });
+
+  await runtimeUp({ name: "dev" });
+
+  expect(attach).toHaveBeenCalledWith("repo-dev");
+  expect(pathExists).not.toHaveBeenCalled();
+  expect(readFile).not.toHaveBeenCalled();
+});
+
+test("reads global then project config for a new runtime session", async () => {
+  const tmux = {
+    hasSession: mock<(session: string) => Promise<boolean>>().mockResolvedValue(false),
+    newSession: mock<() => Promise<{ windowId: string; paneId: string }>>().mockResolvedValue({
+      windowId: "@1",
+      paneId: "%1",
+    }),
+    newWindow: mock<() => Promise<{ windowId: string; paneId: string }>>().mockResolvedValue({
+      windowId: "@2",
+      paneId: "%2",
+    }),
+    setEnvironment: mock<() => Promise<void>>().mockResolvedValue(),
+    respawnPane: mock<() => Promise<void>>().mockResolvedValue(),
+    selectWindow: mock<() => Promise<void>>().mockResolvedValue(),
+    selectPane: mock<() => Promise<void>>().mockResolvedValue(),
+    attach: mock<() => Promise<void>>().mockResolvedValue(),
+  } as unknown as ReturnType<typeof createTmuxAdapter>;
+  const readFile = mock<(path: string, encoding: "utf8") => Promise<string>>().mockResolvedValue(
+    '// config\n{ "version": 1, }',
+  );
+  const runtimeUp = createRuntimeUp({
+    createTmux: () => tmux,
+    cwd: () => "/repo",
+    env: { XDG_CONFIG_HOME: "/xdg" },
+    homedir: () => "/home/max",
+    readFile,
+    gitExec: mock<GitExec>().mockResolvedValue({ exitCode: 0, stdout: "/repo\n", stderr: "" }),
+    mkdir:
+      mock<(path: string, options: { recursive: true }) => Promise<unknown>>().mockResolvedValue(
+        undefined,
+      ),
+    pathExists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
+    unlink: mock<(path: string) => Promise<void>>().mockResolvedValue(),
+  });
+
+  await runtimeUp({ name: "dev" });
+
+  expect(readFile.mock.calls).toEqual([
+    ["/xdg/termwire/config.jsonc", "utf8"],
+    ["/repo/.termwire.jsonc", "utf8"],
+  ]);
+});
+
 test("wires runtime requests through Git discovery and existing-session attach", async () => {
   const hasSession = mock<(session: string) => Promise<boolean>>().mockResolvedValue(true);
   const attach = mock<(session: string) => Promise<void>>().mockResolvedValue();
@@ -177,6 +245,7 @@ test("wires runtime branch preparation before creating a new session", async () 
     [["git", "rev-parse", "--show-toplevel"], { cwd: "/repo" }],
     [["git", "show-ref", "--verify", "--quiet", "refs/heads/feature/api"], { cwd: "/repo" }],
     [["git", "switch", "-c", "feature/api"], { cwd: "/repo" }],
+    [["git", "rev-parse", "--show-toplevel"], { cwd: "/repo" }],
   ]);
 });
 
