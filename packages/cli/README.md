@@ -198,14 +198,15 @@ Keep editing, OpenCode, and watched tests visible together in one `work` window.
 
 ```text
 [work]
-┌──────────────────────┬──────────────────┐
-│ editor               │ ai               │
-│                      │ opencode         │
-│                      ├──────────────────┤
-│                      │ tests (new: 40%) │
-│                      │ bun test --watch │
-└──────────────────────┴──────────────────┘
-                       right side: 40%
+┌───────────────────────────┬──────────────────┐
+│ editor                    │ ai               │
+│                           │ opencode         │
+│                           │                  │
+│                           ├──────────────────┤
+│                           │ tests (new: 40%) │
+│                           │ bun test --watch │
+└───────────────────────────┴──────────────────┘
+                            right side: 40%
 ```
 
 ```jsonc
@@ -245,9 +246,14 @@ editor.
 [code]                 [server]               [shell]
 ┌──────────────────┐  ┌────────────────────┐  ┌──────────────────┐
 │ editor           │  │ server             │  │ shell            │
-├──────────────────┤  │ bun run dev        │  │                  │
+│                  │  │ bun run dev        │  │                  │
+│                  │  │                    │  │                  │
+│                  │  │                    │  │                  │
+│                  │  │                    │  │                  │
+├──────────────────┤  │                    │  │                  │
 │ tests (new: 35%) │  │                    │  │                  │
 │ bun test --watch │  │                    │  │                  │
+│                  │  │                    │  │                  │
 └──────────────────┘  └────────────────────┘  └──────────────────┘
 ```
 
@@ -299,8 +305,9 @@ while preserving the original failure.
   argv command, or tmux's default shell when an ordinary pane has no command.
   Final processes receive `TERMWIRE_SESSION`, `TERMWIRE_SOCKET`, and
   `TERMWIRE_EDITOR_PANE`.
-- OpenCode is not started automatically. Users may start it in a shell pane and
-  reshape the workspace with tmux after creation.
+- The default layout does not start OpenCode automatically. Users may start it manually in an
+  ordinary shell pane, or configure `["opencode"]` as a pane command. They may also reshape the
+  workspace with tmux after creation.
 - The CLI has no shell-facing `open` command and does not need to be in `PATH`
   for the plugin: the plugin composes the nvim and tmux adapters directly.
 
