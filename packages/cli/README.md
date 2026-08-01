@@ -131,6 +131,159 @@ custom pane cwd, custom pane environment, shell-string command syntax, or
 configuration/state persistence beyond reading these optional files for a new
 session.
 
+### Layout cookbook
+
+#### Default: editor and shell
+
+Use two simple windows when you want the editor and an ordinary shell kept separate.
+
+```text
+[editor]              [shell]
+┌──────────────────┐  ┌──────────────────┐
+│ editor           │  │ shell            │
+└──────────────────┘  └──────────────────┘
+```
+
+```jsonc
+{
+  "version": 1,
+  "windows": [
+    {
+      "name": "editor",
+      "panes": [{ "id": "editor", "role": "editor" }],
+    },
+    {
+      "name": "shell",
+      "panes": [{ "id": "shell" }],
+    },
+  ],
+}
+```
+
+#### Three-window workflow
+
+Use independent windows when you want to move between editing, AI work, and a shell.
+The `ai` window is an ordinary shell and does not start a command automatically.
+
+```text
+[editor]              [ai]                  [shell]
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ editor           │  │ ai (shell)       │  │ shell            │
+└──────────────────┘  └──────────────────┘  └──────────────────┘
+```
+
+```jsonc
+{
+  "version": 1,
+  "windows": [
+    {
+      "name": "editor",
+      "panes": [{ "id": "editor", "role": "editor" }],
+    },
+    {
+      "name": "ai",
+      "panes": [{ "id": "ai" }],
+    },
+    {
+      "name": "shell",
+      "panes": [{ "id": "shell" }],
+    },
+  ],
+}
+```
+
+#### Focused coding
+
+Keep editing, OpenCode, and watched tests visible together in one `work` window.
+
+```text
+[work]
+┌──────────────────────┬──────────────────┐
+│ editor               │ ai               │
+│                      │ opencode         │
+│                      ├──────────────────┤
+│                      │ tests (new: 40%) │
+│                      │ bun test --watch │
+└──────────────────────┴──────────────────┘
+                       right side: 40%
+```
+
+```jsonc
+{
+  "version": 1,
+  "windows": [
+    {
+      "name": "work",
+      "panes": [
+        { "id": "editor", "role": "editor" },
+        {
+          "id": "ai",
+          "splitFrom": "editor",
+          "direction": "horizontal",
+          "sizePercent": 40,
+          "command": ["opencode"],
+        },
+        {
+          "id": "tests",
+          "splitFrom": "ai",
+          "direction": "vertical",
+          "sizePercent": 40,
+          "command": ["bun", "test", "--watch"],
+        },
+      ],
+    },
+  ],
+}
+```
+
+#### Full-stack
+
+Separate code, the development server, and a spare shell while keeping watched tests under the
+editor.
+
+```text
+[code]                 [server]               [shell]
+┌──────────────────┐  ┌────────────────────┐  ┌──────────────────┐
+│ editor           │  │ server             │  │ shell            │
+├──────────────────┤  │ bun run dev        │  │                  │
+│ tests (new: 35%) │  │                    │  │                  │
+│ bun test --watch │  │                    │  │                  │
+└──────────────────┘  └────────────────────┘  └──────────────────┘
+```
+
+```jsonc
+{
+  "version": 1,
+  "windows": [
+    {
+      "name": "code",
+      "panes": [
+        { "id": "editor", "role": "editor" },
+        {
+          "id": "tests",
+          "splitFrom": "editor",
+          "direction": "vertical",
+          "sizePercent": 35,
+          "command": ["bun", "test", "--watch"],
+        },
+      ],
+    },
+    {
+      "name": "server",
+      "panes": [{ "id": "server", "command": ["bun", "run", "dev"] }],
+    },
+    {
+      "name": "shell",
+      "panes": [{ "id": "shell" }],
+    },
+  ],
+}
+```
+
+`horizontal` means left/right, `vertical` means top/bottom, and `sizePercent` applies to the new
+pane. Layouts affect only newly created sessions; attaches are unchanged. The OpenCode and Bun
+commands are replaceable examples.
+
 ### Errors and session behavior
 
 JSONC parse errors identify the source and one-based line and column. Schema
