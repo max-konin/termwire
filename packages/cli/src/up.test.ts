@@ -15,9 +15,11 @@ const defaultLayout: LayoutConfig = {
 test("attaches immediately to an existing session without workspace side effects", async () => {
   const hasSession = mock<(session: string) => Promise<boolean>>().mockResolvedValue(true);
   const attach = mock<(session: string) => Promise<void>>().mockResolvedValue();
+  const setSessionTitle = mock<(session: string) => Promise<void>>();
   const tmux = {
     hasSession,
     attach,
+    setSessionTitle,
   } as unknown as ReturnType<typeof createTmux>;
   const findGitRoot =
     mock<(cwd: string) => Promise<string | undefined>>().mockResolvedValue("/repo");
@@ -44,6 +46,7 @@ test("attaches immediately to an existing session without workspace side effects
 
   expect(hasSession).toHaveBeenCalledWith("repo-dev");
   expect(attach).toHaveBeenCalledWith("repo-dev");
+  expect(setSessionTitle).not.toHaveBeenCalled();
   expect(prepareBranch).not.toHaveBeenCalled();
   expect(prepareWorktree).not.toHaveBeenCalled();
   expect(mkdir).not.toHaveBeenCalled();
@@ -220,11 +223,12 @@ test("creates the initial session from the effective layout and hands it to crea
 test.each([
   { failure: "createLayout", cleanupFails: false },
   { failure: "attach", cleanupFails: false },
+  { failure: "setSessionTitle", cleanupFails: false },
   { failure: "createLayout", cleanupFails: true },
 ] as const)(
   "cleans up and preserves the original error when %s fails",
   async ({ failure, cleanupFails }) => {
-    const { tmux, attach, killSession } = createWorkspaceTmux();
+    const { tmux, attach, killSession, setSessionTitle } = createWorkspaceTmux();
     const setupError = new Error(`${failure} failed`);
     const createLayoutMock = mock<typeof createLayout>().mockResolvedValue({
       editor: { windowId: "@1", paneId: "%1" },
@@ -236,6 +240,7 @@ test.each([
     });
     if (failure === "createLayout") createLayoutMock.mockRejectedValue(setupError);
     if (failure === "attach") attach.mockRejectedValue(setupError);
+    if (failure === "setSessionTitle") setSessionTitle.mockRejectedValue(setupError);
     if (cleanupFails) killSession.mockRejectedValue(new Error("cleanup failed"));
 
     await expect(
@@ -444,6 +449,9 @@ test("creates the default editor and shell workspace protocol", async () => {
     events.push("newSession");
     return { windowId: "@1", paneId: "%1" };
   });
+  const setSessionTitle = mock<(session: string) => Promise<void>>().mockImplementation(async () => {
+    events.push("setSessionTitle");
+  });
   const setEnvironment = mock<
     (session: string, key: string, value: string) => Promise<void>
   >().mockImplementation(async (_session, key) => {
@@ -487,6 +495,7 @@ test("creates the default editor and shell workspace protocol", async () => {
   const tmux = {
     hasSession,
     newSession,
+    setSessionTitle,
     setEnvironment,
     respawnPane,
     newWindow,
@@ -524,6 +533,7 @@ test("creates the default editor and shell workspace protocol", async () => {
   expect(mkdir).toHaveBeenCalledWith("/tmp/termwire");
   expect(removeFile).toHaveBeenCalledWith("/tmp/termwire/repo-dev.sock");
   expect(newSession).toHaveBeenCalledWith({ session: "repo-dev", name: "editor", cwd: "/repo" });
+  expect(setSessionTitle).toHaveBeenCalledWith("repo-dev");
   expect(setEnvironment.mock.calls).toEqual([
     ["repo-dev", "TERMWIRE_SESSION", "repo-dev"],
     ["repo-dev", "TERMWIRE_SOCKET", "/tmp/termwire/repo-dev.sock"],
@@ -549,6 +559,7 @@ test("creates the default editor and shell workspace protocol", async () => {
     "mkdir",
     "removeFile",
     "newSession",
+    "setSessionTitle",
     "newWindow",
     "setEnvironment:TERMWIRE_SESSION",
     "setEnvironment:TERMWIRE_SOCKET",
@@ -815,6 +826,8 @@ function createWorkspaceTmux(sessionExists = false) {
   const attach = mock<ReturnType<typeof createTmux>["attach"]>().mockResolvedValue();
   const sendKeys = mock<ReturnType<typeof createTmux>["sendKeys"]>().mockResolvedValue();
   const killSession = mock<ReturnType<typeof createTmux>["killSession"]>().mockResolvedValue();
+  const setSessionTitle =
+    mock<ReturnType<typeof createTmux>["setSessionTitle"]>().mockResolvedValue();
 
   return {
     tmux: {
@@ -828,6 +841,7 @@ function createWorkspaceTmux(sessionExists = false) {
       attach,
       sendKeys,
       killSession,
+      setSessionTitle,
     } as unknown as ReturnType<typeof createTmux>,
     hasSession,
     newSession,
@@ -839,5 +853,6 @@ function createWorkspaceTmux(sessionExists = false) {
     attach,
     sendKeys,
     killSession,
+    setSessionTitle,
   };
 }

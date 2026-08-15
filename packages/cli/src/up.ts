@@ -60,6 +60,7 @@ export async function up(request: UpRequest, dependencies: UpDependencies): Prom
     cwd: workspace,
   });
   try {
+    await dependencies.tmux.setSessionTitle(identity.session);
     await dependencies.createLayout({
       tmux: dependencies.tmux,
       session: identity.session,
