@@ -449,9 +449,11 @@ test("creates the default editor and shell workspace protocol", async () => {
     events.push("newSession");
     return { windowId: "@1", paneId: "%1" };
   });
-  const setSessionTitle = mock<(session: string) => Promise<void>>().mockImplementation(async () => {
-    events.push("setSessionTitle");
-  });
+  const setSessionTitle = mock<(session: string) => Promise<void>>().mockImplementation(
+    async () => {
+      events.push("setSessionTitle");
+    },
+  );
   const setEnvironment = mock<
     (session: string, key: string, value: string) => Promise<void>
   >().mockImplementation(async (_session, key) => {
