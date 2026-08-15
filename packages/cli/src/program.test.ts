@@ -134,6 +134,7 @@ test("reads global then project config for a new runtime session", async () => {
       windowId: "@1",
       paneId: "%1",
     }),
+    setSessionTitle: mock<() => Promise<void>>().mockResolvedValue(),
     newWindow: mock<() => Promise<{ windowId: string; paneId: string }>>().mockResolvedValue({
       windowId: "@2",
       paneId: "%2",
@@ -207,6 +208,7 @@ test("wires runtime branch preparation before creating a new session", async () 
       windowId: "@1",
       paneId: "%1",
     }),
+    setSessionTitle: mock<() => Promise<void>>().mockResolvedValue(),
     setEnvironment: mock<() => Promise<void>>().mockResolvedValue(),
     respawnPane: mock<() => Promise<void>>().mockResolvedValue(),
     newWindow: mock<() => Promise<{ windowId: string; paneId: string }>>().mockResolvedValue({
