@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
 import { CommandError, type Exec, type ExecResult } from "./process";
-import { hasSession, killSession, newSession, setEnvironment } from "./session";
+import { hasSession, killSession, newSession, setEnvironment, setSessionTitle } from "./session";
 import { ValidationError } from "./validation";
 
 const result = (exitCode: number, stdout = "", stderr = ""): ExecResult => ({
@@ -164,6 +164,56 @@ describe("session lifecycle", () => {
       ["tmux", "set-environment", "-t", "=demo", "TERMWIRE_SOCKET", "/tmp/demo.sock"],
       undefined,
     );
+  });
+
+  test("sets the session title with exact commands in sequence", async () => {
+    const calls: string[][] = [];
+    const exec: Exec = async (argv) => {
+      calls.push([...argv]);
+      return result(0);
+    };
+
+    await setSessionTitle(exec, "demo");
+
+    expect(calls).toEqual([
+      ["tmux", "set-option", "-t", "=demo", "set-titles", "on"],
+      ["tmux", "set-option", "-t", "=demo", "set-titles-string", "#{session_name}"],
+    ]);
+  });
+
+  test("does not execute the second title command when the first fails", async () => {
+    const calls: string[][] = [];
+    const exec: Exec = async (argv) => {
+      calls.push([...argv]);
+      return result(2, "", "tmux failed");
+    };
+
+    await expect(setSessionTitle(exec, "demo")).rejects.toMatchObject({
+      argv: ["tmux", "set-option", "-t", "=demo", "set-titles", "on"],
+      exitCode: 2,
+      stderr: "tmux failed",
+    });
+    expect(calls).toEqual([["tmux", "set-option", "-t", "=demo", "set-titles", "on"]]);
+  });
+
+  test("rejects an empty session before setting the title", async () => {
+    const exec = mock(async (..._args: Parameters<Exec>) => result(0));
+
+    await expect(setSessionTitle(exec, " ")).rejects.toMatchObject({ field: "session" });
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  test("turns a second title command failure into CommandError", async () => {
+    const exec = mock(async (..._args: Parameters<Exec>) => {
+      if (exec.mock.calls.length === 1) return result(0);
+      return result(2, "", "title failed");
+    });
+
+    await expect(setSessionTitle(exec, "demo")).rejects.toMatchObject({
+      argv: ["tmux", "set-option", "-t", "=demo", "set-titles-string", "#{session_name}"],
+      exitCode: 2,
+      stderr: "title failed",
+    });
   });
 
   test("kills an exact session target", async () => {
