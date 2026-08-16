@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+cd "$(git rev-parse --show-toplevel)"
+
+if git status --porcelain=v1 | grep -Eq '^[^ ?][^ ]'; then
+  printf '%s\n' "ERROR: staged files also have unstaged changes" >&2
+  exit 1
+fi
+
+bunx biome check --write --staged --files-ignore-unknown=true --no-errors-on-unmatched
+git update-index --again
+bun run lint
+bun test
