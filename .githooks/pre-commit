@@ -3,7 +3,8 @@ set -eu
 
 cd "$(git rev-parse --show-toplevel)"
 
-if git status --porcelain=v1 | grep -Eq '^[^ ?][^ ]'; then
+status="$(git status --porcelain=v1)"
+if printf '%s\n' "$status" | grep -Eq '^[^ ?][^ ]'; then
   printf '%s\n' "ERROR: staged files also have unstaged changes" >&2
   exit 1
 fi
