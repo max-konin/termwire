@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import packageJson from "../package.json";
 import type { OpenFileHandler } from "./open";
 import {
   createTermwireOpenToolHandler,
@@ -7,7 +8,7 @@ import {
 } from "./tool";
 
 export function createTermwireMcpServer(openFile: OpenFileHandler): McpServer {
-  const server = new McpServer({ name: "termwire", version: "0.2.1" });
+  const server = new McpServer({ name: "termwire", version: packageJson.version });
   server.registerTool(
     "termwire_open",
     {
