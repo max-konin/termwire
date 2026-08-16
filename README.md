@@ -52,3 +52,9 @@ bun test
 bunx tsc --noEmit
 bun run build
 ```
+
+To opt into the native Git hook for this clone, run `bun run hooks:install` once.
+Before each commit it formats staged files and applies safe Biome fixes, refreshes
+the index, then runs the full lint and test checks. Partial staging is protected:
+staged files cannot also have unstaged changes. Hooks are local and bypassable, so
+CI remains authoritative.
