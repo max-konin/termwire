@@ -10,6 +10,16 @@ export interface NewWindowOptions {
   environment?: Record<string, string | undefined>;
 }
 
+export const tmuxLayouts = [
+  "even-horizontal",
+  "even-vertical",
+  "main-horizontal",
+  "main-vertical",
+  "tiled",
+] as const;
+
+export type TmuxLayout = (typeof tmuxLayouts)[number];
+
 export async function newWindow(exec: Exec, options: NewWindowOptions): Promise<WindowPaneIds> {
   assertNotEmpty("target", options.target);
   if (options.name !== undefined) assertNotEmpty("name", options.name);
@@ -44,6 +54,17 @@ export async function selectWindow(exec: Exec, target: string): Promise<void> {
 
   const command = ["tmux", "select-window", "-t", target];
 
+  const execution = await execute(exec, command);
+
+  if (execution.exitCode !== 0) {
+    throw CommandError.from(command, execution);
+  }
+}
+
+export async function selectLayout(exec: Exec, target: string, layout: TmuxLayout): Promise<void> {
+  assertNotEmpty("target", target);
+
+  const command = ["tmux", "select-layout", "-t", target, layout];
   const execution = await execute(exec, command);
 
   if (execution.exitCode !== 0) {

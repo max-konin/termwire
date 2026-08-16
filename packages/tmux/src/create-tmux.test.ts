@@ -35,10 +35,15 @@ describe("createTmux", () => {
     expect(tmux.splitPane).toBeFunction();
     expect(tmux.sendKeys).toBeFunction();
     expect(tmux.selectWindow).toBeFunction();
+    expect(tmux.selectLayout).toBeFunction();
     expect(tmux.selectPane).toBeFunction();
     expect(tmux.attach).toBeFunction();
     expect(await tmux.hasSession("project")).toBe(true);
-    expect(calls).toEqual([["tmux", "has-session", "-t", "=project"]]);
+    await tmux.selectLayout("@2", "tiled");
+    expect(calls).toEqual([
+      ["tmux", "has-session", "-t", "=project"],
+      ["tmux", "select-layout", "-t", "@2", "tiled"],
+    ]);
   });
 
   test("binds lifecycle primitives to its executor", async () => {

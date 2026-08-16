@@ -8,4 +8,5 @@ export { CommandError } from "./process";
 export type { NewSessionOptions } from "./session";
 export { killSession, setEnvironment } from "./session";
 export { ValidationError } from "./validation";
-export type { NewWindowOptions } from "./window";
+export type { NewWindowOptions, TmuxLayout } from "./window";
+export { selectLayout, tmuxLayouts } from "./window";

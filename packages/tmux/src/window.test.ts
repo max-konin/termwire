@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import type { Exec, ExecResult } from "./process";
 import { ValidationError } from "./validation";
-import { newWindow, selectWindow } from "./window";
+import { newWindow, selectLayout, selectWindow } from "./window";
 
 const result = (exitCode: number, stdout = "", stderr = ""): ExecResult => ({
   exitCode,
@@ -120,6 +120,33 @@ describe("selectWindow", () => {
       argv: ["tmux", "select-window", "-t", "@2"],
       exitCode: 2,
       stderr: "selection failed",
+    });
+  });
+});
+
+describe("selectLayout", () => {
+  test("applies a built-in layout to an exact window target", async () => {
+    const exec = mock(async (..._args: Parameters<Exec>) => result(0));
+
+    await selectLayout(exec, "@2", "main-vertical");
+
+    expect(exec.mock.calls).toEqual([[["tmux", "select-layout", "-t", "@2", "main-vertical"]]]);
+  });
+
+  test("rejects an empty target before execution", async () => {
+    const exec = mock(async (..._args: Parameters<Exec>) => result(0));
+
+    await expect(selectLayout(exec, "", "tiled")).rejects.toBeInstanceOf(ValidationError);
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  test("reports a nonzero tmux exit", async () => {
+    const exec: Exec = async () => result(2, "", "layout failed");
+
+    await expect(selectLayout(exec, "@2", "tiled")).rejects.toMatchObject({
+      argv: ["tmux", "select-layout", "-t", "@2", "tiled"],
+      exitCode: 2,
+      stderr: "layout failed",
     });
   });
 });
