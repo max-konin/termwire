@@ -1,5 +1,14 @@
 # @termwire/cli
 
+## 0.2.1
+
+### Patch Changes
+
+- eec1451: Termwire new sessions now set the outer terminal title from the tmux session name, and the tmux adapter exposes built-in layout selection.
+- Updated dependencies [eec1451]
+  - @termwire/tmux@0.2.1
+  - @termwire/nvim@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
