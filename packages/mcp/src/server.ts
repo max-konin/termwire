@@ -7,7 +7,7 @@ import {
 } from "./tool";
 
 export function createTermwireMcpServer(openFile: OpenFileHandler): McpServer {
-  const server = new McpServer({ name: "termwire", version: "0.1.2" });
+  const server = new McpServer({ name: "termwire", version: "0.2.1" });
   server.registerTool(
     "termwire_open",
     {

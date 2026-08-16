@@ -7,6 +7,7 @@
 - Updated dependencies [eec1451]
   - @termwire/tmux@0.2.1
   - @termwire/nvim@0.2.1
+  - Zod is pinned to 4.1.8 for SDK schema type compatibility.
 
 ## 0.2.0
 
