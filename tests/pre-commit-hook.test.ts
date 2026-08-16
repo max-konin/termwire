@@ -42,7 +42,10 @@ printf 'formatted\\n' > fixture.ts
     join(bin, "bun"),
     `#!/bin/sh
 printf '%s\\n' "$*" >> "$TERMWIRE_LOG"
-if [ "$*" = "run lint" ] && [ "$TERMWIRE_LINT_FAIL" = "1" ]; then exit 7; fi
+if [ "$*" = "run lint" ]; then
+  if [ "$TERMWIRE_LINT_FAIL" = "1" ]; then exit 7; fi
+  [ "$(git show :fixture.ts)" = "formatted" ] || exit 8
+fi
 `,
   );
   await chmod(join(bin, "bunx"), 0o755);
