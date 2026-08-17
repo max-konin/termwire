@@ -13,13 +13,13 @@
     },
     "packages/cli": {
       "name": "@termwire/cli",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "bin": {
         "termwire": "dist/bin/termwire.js",
       },
       "dependencies": {
-        "@termwire/nvim": "^0.2.1",
-        "@termwire/tmux": "^0.2.1",
+        "@termwire/nvim": "^0.2.2",
+        "@termwire/tmux": "^0.2.2",
         "commander": "^15.0.0",
         "jsonc-parser": "^3.3.1",
         "zod": "^4.0.0",
@@ -27,33 +27,33 @@
     },
     "packages/mcp": {
       "name": "@termwire/mcp",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "bin": {
         "termwire-mcp": "dist/bin/termwire-mcp.js",
       },
       "dependencies": {
         "@modelcontextprotocol/sdk": "1.29.0",
-        "@termwire/nvim": "^0.2.1",
-        "@termwire/tmux": "^0.2.1",
+        "@termwire/nvim": "^0.2.2",
+        "@termwire/tmux": "^0.2.2",
         "zod": "4.1.8",
       },
     },
     "packages/nvim": {
       "name": "@termwire/nvim",
-      "version": "0.2.1",
+      "version": "0.2.2",
     },
     "packages/opencode-plugin": {
       "name": "@termwire/opencode-plugin",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "dependencies": {
         "@opencode-ai/plugin": "1.17.20",
-        "@termwire/nvim": "^0.2.1",
-        "@termwire/tmux": "^0.2.1",
+        "@termwire/nvim": "^0.2.2",
+        "@termwire/tmux": "^0.2.2",
       },
     },
     "packages/tmux": {
       "name": "@termwire/tmux",
-      "version": "0.2.1",
+      "version": "0.2.2",
     },
   },
   "packages": {

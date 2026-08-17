@@ -1,5 +1,11 @@
 # @termwire/tmux
 
+## 0.2.2
+
+### Patch Changes
+
+- f65db71: Use valid plain session targets for tmux session-title options, preventing `termwire up` from failing.
+
 ## 0.2.1
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @termwire/mcp
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [f65db71]
+  - @termwire/tmux@0.2.2
+  - @termwire/nvim@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes
