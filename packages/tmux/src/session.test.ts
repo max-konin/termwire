@@ -176,8 +176,8 @@ describe("session lifecycle", () => {
     await setSessionTitle(exec, "demo");
 
     expect(calls).toEqual([
-      ["tmux", "set-option", "-t", "=demo", "set-titles", "on"],
-      ["tmux", "set-option", "-t", "=demo", "set-titles-string", "#{session_name}"],
+      ["tmux", "set-option", "-t", "demo", "set-titles", "on"],
+      ["tmux", "set-option", "-t", "demo", "set-titles-string", "#{session_name}"],
     ]);
   });
 
@@ -189,11 +189,11 @@ describe("session lifecycle", () => {
     };
 
     await expect(setSessionTitle(exec, "demo")).rejects.toMatchObject({
-      argv: ["tmux", "set-option", "-t", "=demo", "set-titles", "on"],
+      argv: ["tmux", "set-option", "-t", "demo", "set-titles", "on"],
       exitCode: 2,
       stderr: "tmux failed",
     });
-    expect(calls).toEqual([["tmux", "set-option", "-t", "=demo", "set-titles", "on"]]);
+    expect(calls).toEqual([["tmux", "set-option", "-t", "demo", "set-titles", "on"]]);
   });
 
   test("rejects an empty session before setting the title", async () => {
@@ -210,7 +210,7 @@ describe("session lifecycle", () => {
     });
 
     await expect(setSessionTitle(exec, "demo")).rejects.toMatchObject({
-      argv: ["tmux", "set-option", "-t", "=demo", "set-titles-string", "#{session_name}"],
+      argv: ["tmux", "set-option", "-t", "demo", "set-titles-string", "#{session_name}"],
       exitCode: 2,
       stderr: "title failed",
     });

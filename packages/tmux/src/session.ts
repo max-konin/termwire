@@ -44,7 +44,7 @@ export async function setEnvironment(
 export async function setSessionTitle(exec: Exec, session: string): Promise<void> {
   assertNotEmpty("session", session);
 
-  const setTitlesCommand = ["tmux", "set-option", "-t", `=${session}`, "set-titles", "on"];
+  const setTitlesCommand = ["tmux", "set-option", "-t", session, "set-titles", "on"];
   const setTitlesExecution = await execute(exec, setTitlesCommand);
 
   if (setTitlesExecution.exitCode !== 0) {
@@ -55,7 +55,7 @@ export async function setSessionTitle(exec: Exec, session: string): Promise<void
     "tmux",
     "set-option",
     "-t",
-    `=${session}`,
+    session,
     "set-titles-string",
     "#{session_name}",
   ];
