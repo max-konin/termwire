@@ -772,15 +772,99 @@ test("rejects an empty direct branch request before checking tmux", async () => 
   expect(hasSession).not.toHaveBeenCalled();
 });
 
+test("installs the session cleanup hook before creating the workspace layout", async () => {
+  const { tmux, newSession, setSessionTitle } = createWorkspaceTmux();
+  const order: string[] = [];
+  const installReapHook = mock<() => Promise<void>>().mockImplementation(async () => {
+    order.push("installReapHook");
+  });
+  newSession.mockImplementation(async () => {
+    order.push("newSession");
+    return { windowId: "@1", paneId: "%1" };
+  });
+  setSessionTitle.mockImplementation(async () => {
+    order.push("setSessionTitle");
+  });
+
+  await up(
+    { name: "dev" },
+    {
+      cwd: () => "/repo",
+      findGitRoot: async () => "/repo",
+      prepareBranch: async () => {},
+      prepareWorktree: async () => "/repo-worktree",
+      mkdir: async () => {},
+      removeFile: async () => {},
+      tmux,
+      installReapHook,
+    },
+  );
+
+  expect(installReapHook).toHaveBeenCalledTimes(1);
+  expect(order).toEqual(["newSession", "installReapHook", "setSessionTitle"]);
+});
+
+test.each([true, false])(
+  "brings the workspace up although the cleanup hook failed (existing session: %p)",
+  async (sessionExists) => {
+    const { tmux, attach, killSession } = createWorkspaceTmux(sessionExists);
+    const installReapHook = mock<() => Promise<void>>().mockRejectedValue(new Error("no server"));
+
+    await up(
+      { name: "dev" },
+      {
+        cwd: () => "/repo",
+        findGitRoot: async () => "/repo",
+        prepareBranch: async () => {},
+        prepareWorktree: async () => "/repo-worktree",
+        mkdir: async () => {},
+        removeFile: async () => {},
+        tmux,
+        installReapHook,
+      },
+    );
+
+    expect(attach).toHaveBeenCalledWith("repo-dev");
+    expect(killSession).not.toHaveBeenCalled();
+  },
+);
+
+test("refreshes the session cleanup hook when attaching to an existing session", async () => {
+  const hasSession = mock<(session: string) => Promise<boolean>>().mockResolvedValue(true);
+  const attach = mock<(session: string) => Promise<void>>().mockResolvedValue();
+  const installReapHook = mock<() => Promise<void>>().mockResolvedValue();
+
+  await up(
+    { name: "dev" },
+    {
+      cwd: () => "/repo",
+      findGitRoot: async () => "/repo",
+      prepareBranch: async () => {},
+      prepareWorktree: async () => "/repo-worktree",
+      mkdir: async () => {},
+      removeFile: async () => {},
+      tmux: { hasSession, attach } as unknown as ReturnType<typeof createTmux>,
+      installReapHook,
+    },
+  );
+
+  expect(installReapHook).toHaveBeenCalledTimes(1);
+  expect(attach).toHaveBeenCalledWith("repo-dev");
+});
+
 function createUpDependencies(
   dependencies: Omit<
     UpDependencies,
-    "loadGlobalConfig" | "loadProjectConfig" | "resolveLayout" | "createLayout"
+    "loadGlobalConfig" | "loadProjectConfig" | "resolveLayout" | "createLayout" | "installReapHook"
   > &
     Partial<
       Pick<
         UpDependencies,
-        "loadGlobalConfig" | "loadProjectConfig" | "resolveLayout" | "createLayout"
+        | "loadGlobalConfig"
+        | "loadProjectConfig"
+        | "resolveLayout"
+        | "createLayout"
+        | "installReapHook"
       >
     >,
 ): UpDependencies {
@@ -789,6 +873,7 @@ function createUpDependencies(
     loadProjectConfig: async () => undefined,
     resolveLayout: () => defaultLayout,
     createLayout,
+    installReapHook: async () => {},
     ...dependencies,
   };
 }
@@ -797,12 +882,16 @@ function up(
   request: Parameters<typeof runUp>[0],
   dependencies: Omit<
     UpDependencies,
-    "loadGlobalConfig" | "loadProjectConfig" | "resolveLayout" | "createLayout"
+    "loadGlobalConfig" | "loadProjectConfig" | "resolveLayout" | "createLayout" | "installReapHook"
   > &
     Partial<
       Pick<
         UpDependencies,
-        "loadGlobalConfig" | "loadProjectConfig" | "resolveLayout" | "createLayout"
+        | "loadGlobalConfig"
+        | "loadProjectConfig"
+        | "resolveLayout"
+        | "createLayout"
+        | "installReapHook"
       >
     >,
 ): ReturnType<typeof runUp> {
