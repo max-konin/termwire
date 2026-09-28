@@ -1,5 +1,13 @@
 # @termwire/mcp
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [7e73a29]
+  - @termwire/tmux@0.4.0
+  - @termwire/nvim@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
