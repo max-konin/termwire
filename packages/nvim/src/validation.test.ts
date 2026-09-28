@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { assertNotEmpty, ValidationError } from "./validation";
+import { assertNotEmpty, ValidationError } from "./validation.js";
 
 describe("assertNotEmpty", () => {
   test("accepts a non-empty value", () => {

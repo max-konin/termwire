@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createNvim, type Exec, type ExecResult } from "./index";
+import { createNvim, type Exec, type ExecResult } from "./index.js";
 
 const result = (exitCode: number, stdout = "", stderr = ""): ExecResult => ({
   exitCode,

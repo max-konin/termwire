@@ -1,5 +1,7 @@
 # @termwire/tmux
 
+A thin, typed adapter for tmux 3.2 or newer.
+
 ```bash
 bun add @termwire/tmux
 ```
@@ -8,18 +10,32 @@ bun add @termwire/tmux
 import { createTmux } from "@termwire/tmux";
 
 const tmux = createTmux();
+
+if (!(await tmux.hasSession("repo-dev"))) {
+  await tmux.newSession({ session: "repo-dev", name: "editor", cwd: "/repo" });
+}
 ```
 
-A thin, typed adapter for tmux 3.2. Create it with `createTmux({ exec, env })`; production uses
-`Bun.spawn`, while tests can inject a fake `exec` without requiring a tmux binary.
+`createTmux({ exec, env })` spawns through `node:child_process` in production,
+so it runs on Node and on Bun alike. Tests inject a fake `exec` and need no
+tmux binary.
 
 ## API
 
-The factory exposes `hasSession`, `newSession`, `newWindow`, `splitPane`, `sendKeys`,
-`selectWindow`, `selectPane`, and `attach`. Attach uses `attach-session` outside tmux and
-`switch-client` when `TMUX` is set.
+- Sessions: `hasSession`, `newSession`, `killSession`, `setSessionTitle`,
+  `setEnvironment`, `attach`.
+- Windows: `newWindow`, `selectWindow`, `selectLayout`.
+- Panes: `splitPane`, `respawnPane`, `selectPane`, `sendKeys`.
+
+`attach` uses `attach-session` outside tmux and `switch-client` when `TMUX` is
+set, so attaching works the same from a plain terminal and from inside another
+session.
+
+`newSession` and `newWindow` return the created window and pane ids. Termwire
+uses those ids to place panes and to record the editor pane in
+`TERMWIRE_EDITOR_PANE`.
 
 ## Boundary
 
-This package owns tmux commands only. The CLI owns runtime layout interpretation and editor roles;
-no OpenCode, workspace orchestration, or Neovim logic belongs here.
+This package owns tmux commands only. Layout interpretation, editor roles,
+Neovim, and workspace orchestration belong to the CLI.

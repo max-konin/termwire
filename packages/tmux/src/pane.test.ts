@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
-import { respawnPane, selectPane, sendKeys, splitPane } from "./pane";
-import { CommandError, type Exec, type ExecResult } from "./process";
-import { ValidationError } from "./validation";
+import { respawnPane, selectPane, sendKeys, splitPane } from "./pane.js";
+import { CommandError, type Exec, type ExecResult } from "./process.js";
+import { ValidationError } from "./validation.js";
 
 const result = (exitCode: number, stdout = "", stderr = ""): ExecResult => ({
   exitCode,

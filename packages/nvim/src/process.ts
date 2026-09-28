@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+
 export interface ExecResult {
   exitCode: number;
   stdout: string;
@@ -43,21 +45,36 @@ export async function execute(
   }
 }
 
-export async function bunExec(
+export async function spawnExec(
   argv: readonly string[],
   options: ExecOptions = {},
 ): Promise<ExecResult> {
+  const [command, ...args] = argv;
+
+  if (command === undefined) {
+    throw new Error("command must not be empty");
+  }
+
   const inherited = options.stdio === "inherit";
-  const process = Bun.spawn([...argv], {
-    stdin: inherited ? "inherit" : "ignore",
-    stdout: inherited ? "inherit" : "pipe",
-    stderr: inherited ? "inherit" : "pipe",
+
+  return await new Promise<ExecResult>((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: inherited ? "inherit" : ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.setEncoding("utf8").on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr?.setEncoding("utf8").on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+
+    child.once("error", reject);
+    child.once("close", (code) => {
+      resolve({ exitCode: code ?? 1, stdout, stderr });
+    });
   });
-
-  const exitCode = await process.exited;
-
-  const stdout = inherited ? "" : await new Response(process.stdout).text();
-  const stderr = inherited ? "" : await new Response(process.stderr).text();
-
-  return { exitCode, stdout, stderr };
 }

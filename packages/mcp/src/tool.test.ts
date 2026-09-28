@@ -3,7 +3,7 @@ import {
   createTermwireOpenToolHandler,
   termwireOpenInputSchema,
   termwireOpenOutputSchema,
-} from "./tool";
+} from "./tool.js";
 
 test("validates and trims input", () => {
   expect(termwireOpenInputSchema.safeParse({ path: "   " }).success).toBe(false);

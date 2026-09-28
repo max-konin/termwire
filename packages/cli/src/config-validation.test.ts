@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { LayoutConfig } from "./config-schema";
-import { resolveLayout } from "./config-validation";
+import type { LayoutConfig } from "./config-schema.js";
+import { resolveLayout } from "./config-validation.js";
 
 const globalWindows: LayoutConfig["windows"] = [
   { name: "global", panes: [{ id: "editor", role: "editor" }] },

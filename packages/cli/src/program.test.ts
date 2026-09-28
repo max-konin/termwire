@@ -1,8 +1,21 @@
-import { expect, mock, spyOn, test } from "bun:test";
+import { expect, mock, test } from "bun:test";
+import type { createNvim as createNvimAdapter } from "@termwire/nvim";
 import type { createTmux as createTmuxAdapter } from "@termwire/tmux";
-import { createProgram, createRuntimeUp, executeGit, removeStaleSocket, run } from "./program";
-import type { UpRequest } from "./up";
-import type { GitExec } from "./worktree";
+import type { OpenRequest, OpenResult } from "./open.js";
+import {
+  createProgram,
+  createRuntimeOpen,
+  createRuntimeUp,
+  executeGit,
+  removeStaleSocket,
+  run,
+} from "./program.js";
+import type { UpRequest } from "./up.js";
+import type { GitExec } from "./worktree.js";
+
+function createOpenStub(result: OpenResult = { path: "/repo/src/app.ts", line: 42 }) {
+  return mock<(request: OpenRequest) => Promise<OpenResult>>().mockResolvedValue(result);
+}
 
 test("normalizes supported up worktree forms", async () => {
   const cases: { argv: string[]; request: UpRequest }[] = [
@@ -28,7 +41,7 @@ test("normalizes supported up worktree forms", async () => {
     const up = mock<(request: UpRequest) => Promise<void>>().mockResolvedValue();
     const writeError = mock<(message: string) => void>();
     const writeOutput = mock<(message: string) => void>();
-    const program = createProgram({ up, writeError, writeOutput });
+    const program = createProgram({ up, open: createOpenStub(), writeError, writeOutput });
 
     await program.parseAsync(argv, { from: "user" });
 
@@ -291,18 +304,140 @@ test("rejects an explicitly empty branch option before calling up", async () => 
   expect(up).not.toHaveBeenCalled();
 });
 
-test("wraps a Bun spawn failure with Git execution context", async () => {
-  const cause = new Error("spawn unavailable");
-  const spawn = spyOn(Bun, "spawn").mockImplementation(() => {
-    throw cause;
+test("wraps a spawn failure with Git execution context", async () => {
+  await expect(
+    executeGit(["termwire-missing-git-binary", "status"], { cwd: "/" }),
+  ).rejects.toMatchObject({
+    message: "git execution failed: termwire-missing-git-binary status",
+    cause: { code: "ENOENT" },
+  });
+});
+
+test("rejects an empty Git command", async () => {
+  await expect(executeGit([], { cwd: "/" })).rejects.toThrow("git execution failed: empty command");
+});
+
+test("captures Git stdout and exit code", async () => {
+  const result = await executeGit(["git", "--version"], { cwd: "/" });
+
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain("git version");
+});
+
+test("normalizes supported open target forms", async () => {
+  const cases: { argv: string[]; request: OpenRequest }[] = [
+    { argv: ["open", "src/app.ts"], request: { target: "src/app.ts" } },
+    { argv: ["open", "src/app.ts:42"], request: { target: "src/app.ts:42" } },
+    { argv: ["open", "src/app.ts", "-l", "42"], request: { target: "src/app.ts", line: "42" } },
+    {
+      argv: ["open", "src/app.ts", "--line", "42"],
+      request: { target: "src/app.ts", line: "42" },
+    },
+    { argv: ["open", "src/app.ts", "--line=42"], request: { target: "src/app.ts", line: "42" } },
+  ];
+
+  for (const { argv, request } of cases) {
+    const open = createOpenStub();
+    const writeError = mock<(message: string) => void>();
+    const writeOutput = mock<(message: string) => void>();
+
+    expect(await run(argv, { open, writeError, writeOutput })).toBe(0);
+
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith(request);
+    expect(writeError).not.toHaveBeenCalled();
+  }
+});
+
+test("reports the opened path and line on stdout", async () => {
+  const cases: { result: OpenResult; expected: string }[] = [
+    {
+      result: { path: "/repo/src/app.ts", line: 42 },
+      expected: "Opened /repo/src/app.ts at line 42\n",
+    },
+    { result: { path: "/repo/README.md" }, expected: "Opened /repo/README.md\n" },
+  ];
+
+  for (const { result, expected } of cases) {
+    const writeOutput = mock<(message: string) => void>();
+
+    expect(
+      await run(["open", "src/app.ts"], {
+        open: createOpenStub(result),
+        writeError: mock<(message: string) => void>(),
+        writeOutput,
+      }),
+    ).toBe(0);
+
+    expect(writeOutput).toHaveBeenCalledWith(expected);
+  }
+});
+
+test("prints open help to injected stdout", async () => {
+  const writeOutput = mock<(message: string) => void>();
+  const open = createOpenStub();
+
+  expect(
+    await run(["open", "--help"], {
+      open,
+      writeError: mock<(message: string) => void>(),
+      writeOutput,
+    }),
+  ).toBe(0);
+
+  const output = writeOutput.mock.calls.flat().join("");
+  for (const value of [
+    "Usage: termwire open [options] <target>",
+    "-l, --line <number>",
+    "Target syntax:",
+    "A trailing :<line> selects the line",
+    "With --line, the target is used verbatim",
+    "Requires a shell created by termwire up",
+  ]) {
+    expect(output).toContain(value);
+  }
+  expect(open).not.toHaveBeenCalled();
+});
+
+test("presents open failures without a stack trace", async () => {
+  const open = mock<(request: OpenRequest) => Promise<OpenResult>>().mockRejectedValue(
+    new Error("not inside a termwire workspace"),
+  );
+  const writeError = mock<(message: string) => void>();
+
+  expect(
+    await run(["open", "src/app.ts"], {
+      open,
+      writeError,
+      writeOutput: mock<(message: string) => void>(),
+    }),
+  ).toBe(1);
+
+  expect(writeError).toHaveBeenCalledWith("termwire: not inside a termwire workspace\n");
+});
+
+test("wires runtime open through the injected adapters and environment", async () => {
+  const isRunning = mock<(socket: string) => Promise<boolean>>().mockResolvedValue(true);
+  const openFile =
+    mock<(socket: string, path: string, line?: number) => Promise<void>>().mockResolvedValue();
+  const selectWindow = mock<(target: string) => Promise<void>>().mockResolvedValue();
+  const selectPane = mock<(pane: string) => Promise<void>>().mockResolvedValue();
+
+  const runtimeOpen = createRuntimeOpen({
+    createNvim: () => ({ isRunning, openFile }) as unknown as ReturnType<typeof createNvimAdapter>,
+    createTmux: () =>
+      ({ selectWindow, selectPane }) as unknown as ReturnType<typeof createTmuxAdapter>,
+    cwd: () => "/repo",
+    env: { TERMWIRE_SOCKET: "/tmp/termwire/repo-dev.sock", TERMWIRE_EDITOR_PANE: "%3" },
   });
 
-  try {
-    await expect(executeGit(["git", "status"], { cwd: "/repo" })).rejects.toMatchObject({
-      message: "git execution failed: git status",
-      cause,
-    });
-  } finally {
-    spawn.mockRestore();
-  }
+  expect(await runtimeOpen({ target: "src/app.ts:42" })).toEqual({
+    path: "/repo/src/app.ts",
+    line: 42,
+  });
+
+  expect(isRunning).toHaveBeenCalledWith("/tmp/termwire/repo-dev.sock");
+  expect(openFile).toHaveBeenCalledWith("/tmp/termwire/repo-dev.sock", "/repo/src/app.ts", 42);
+  expect(selectWindow).toHaveBeenCalledWith("%3");
+  expect(selectPane).toHaveBeenCalledWith("%3");
 });

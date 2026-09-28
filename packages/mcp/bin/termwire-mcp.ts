@@ -1,2 +1,2 @@
 #!/usr/bin/env bun
-import "../src/bin/termwire-mcp";
+import "../src/bin/termwire-mcp.js";

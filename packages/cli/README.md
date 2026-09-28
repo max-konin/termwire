@@ -1,25 +1,23 @@
 # @termwire/cli
 
-Requires Bun >=1.3.14, tmux >=3.2, and Neovim >=0.9.
+The `termwire` command. It creates tmux workspaces with a Neovim RPC socket and
+opens files in the workspace editor.
+
+Requires Node >=22.12, tmux >=3.2, and Neovim >=0.9. It runs on Bun as well.
 
 ```bash
-bun add --global @termwire/cli
+npm install -g @termwire/cli
 termwire --help
 termwire up dev
+termwire open src/app.ts:42
 ```
 
-The project's main entry point — the `termwire` command. It orchestrates the
-other packages. Runtime workspace identity is stateless and lives in the
-environment variables set by `termwire up <name>`; layout configuration is
-optional JSONC, not persistent workspace state.
+Workspace identity is stateless. It lives in the environment variables that
+`termwire up <name>` exports into every pane, never in a file on disk. Layout
+configuration is optional JSONC read when a session is created; it is not
+workspace state.
 
-## Why it exists
-
-This is the tool that removes manual tmux/editor setup: bring up a stateless
-workspace with a single command. The CLI owns `up <name>` only; file opening is
-the explicit `termwire_open({ path, line? })` OpenCode plugin tool.
-
-## Commands
+## `up`
 
 | Command | Workspace | Branch |
 | --- | --- | --- |
@@ -36,6 +34,39 @@ present; otherwise the worktree directory key is also the branch name. Slashes a
 Git branch names and replaced only in filesystem-safe worktree directory names. Without `-w`, Git
 is changed only when `--branch` is present. Existing tmux sessions attach without Git mutations or
 rereading/reconciling configuration.
+
+## `open`
+
+```bash
+termwire open <target>
+termwire open <target> --line <number>
+```
+
+Opens a file in the Neovim of the current workspace and focuses the editor
+pane. A trailing `:<line>` in the target selects a line, so `src/app.ts:42`
+opens line 42. With `--line`, the target is used verbatim, which is the way to
+open a file whose name ends in a colon and digits. Relative paths resolve from
+the current directory. On success the command prints the absolute path it
+opened.
+
+| Invocation | Opens |
+| --- | --- |
+| `termwire open src/app.ts` | `src/app.ts`, no line jump |
+| `termwire open src/app.ts:42` | `src/app.ts` at line 42 |
+| `termwire open src/app.ts -l 42` | `src/app.ts` at line 42 |
+| `termwire open weird:42 -l 7` | the file named `weird:42`, at line 7 |
+
+The command reads `TERMWIRE_SOCKET` and `TERMWIRE_EDITOR_PANE` from its
+environment, so it works only in a shell created by `termwire up`. Errors are
+reported without a stack trace:
+
+- `not inside a termwire workspace`: `TERMWIRE_SOCKET` is missing.
+- `nvim is not responding on socket ...`: the workspace Neovim is gone.
+- `line must be a positive integer`, `path must not be empty`: bad target.
+
+Pane focus is skipped when `TERMWIRE_EDITOR_PANE` is absent; opening still
+succeeds. This is what makes the command useful to a coding agent: it needs no
+integration beyond permission to run a shell command.
 
 ## Layout configuration
 
@@ -308,8 +339,10 @@ while preserving the original failure.
 - The default layout does not start OpenCode automatically. Users may start it manually in an
   ordinary shell pane, or configure `["opencode"]` as a pane command. They may also reshape the
   workspace with tmux after creation.
-- The CLI has no shell-facing `open` command and does not need to be in `PATH`
-  for the plugin: the plugin composes the nvim and tmux adapters directly.
+- `open <target>` resolves the path, checks that Neovim answers on the socket,
+  opens the file, then focuses the editor pane when one is known.
+- The CLI does not need to be in `PATH` for the MCP server or the OpenCode
+  plugin. Both compose the nvim and tmux adapters directly.
 
 ## Dependencies
 
@@ -318,3 +351,9 @@ Zod 4 provides strict structural config validation. All three are direct runtime
 dependencies.
 `@termwire/tmux` and `@termwire/nvim` are thin adapters over their binaries;
 the CLI owns workspace policy and orchestration.
+
+## Alternatives for opening files
+
+`@termwire/mcp` exposes the same open operation as an MCP tool and
+`@termwire/opencode-plugin` as a native OpenCode tool. They exist for agents
+that should not run shell commands. Configure one of the three, not several.

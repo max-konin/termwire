@@ -12,6 +12,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "test": "bun test",
+    "verify:node": "bash scripts/verify-node.sh",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "build": "rm -rf packages/*/dist && bunx tsc -p packages/tmux/tsconfig.build.json && bunx tsc -p packages/nvim/tsconfig.build.json && bunx tsc -p packages/cli/tsconfig.build.json && bunx tsc -p packages/opencode-plugin/tsconfig.build.json && bunx tsc -p packages/mcp/tsconfig.build.json && chmod +x packages/cli/dist/bin/termwire.js packages/mcp/dist/bin/termwire-mcp.js",
@@ -21,7 +22,8 @@
     "@biomejs/biome": "^2.5.4",
     "@changesets/cli": "^2.31.1",
     "@types/bun": "latest",
-    "typescript": "^5.0.0"
+    "@types/node": "^22",
+    "typescript": "^7.0.2"
   },
   "workspaces": [
     "packages/*"

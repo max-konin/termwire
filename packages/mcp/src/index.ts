@@ -6,11 +6,11 @@ export type {
   OpenFileResult,
   TmuxClient,
   WorkspaceEnvironment,
-} from "./open";
-export { createOpenFileHandler } from "./open";
-export { createTermwireMcpServer } from "./server";
+} from "./open.js";
+export { createOpenFileHandler } from "./open.js";
+export { createTermwireMcpServer } from "./server.js";
 export {
   createTermwireOpenToolHandler,
   termwireOpenInputSchema,
   termwireOpenOutputSchema,
-} from "./tool";
+} from "./tool.js";

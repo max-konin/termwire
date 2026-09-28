@@ -1,30 +1,32 @@
 # @termwire/opencode-plugin
 
-A lightweight OpenCode plugin that explicitly opens a requested file in the
-current workspace's Neovim and focuses the editor pane.
+A native OpenCode plugin that opens a file in the current workspace's Neovim
+and focuses the editor pane.
 
-## Why it exists
+It runs inside the OpenCode process and calls the Neovim and tmux adapters
+directly, so it needs no separate server process and no `termwire` executable
+in `PATH`.
 
-It gives OpenCode a workspace-aware file-opening tool without requiring an
-`termwire` executable in `PATH`.
+Two alternatives do the same job: `termwire open <path>:<line>` from
+[`@termwire/cli`](../cli/README.md), which works in any agent that can run a
+shell command, and [`@termwire/mcp`](../mcp/README.md), which works in any MCP
+client. Configure one of the three. Two of them means two identical tools
+competing in the model's context.
 
-## Responsibilities
+## Tool
 
-- expose `termwire_open({ path, line? })`, where `path` is required and
-  `line` is an optional positive 1-based integer
-- resolve paths from the OpenCode tool-call directory
-- read inherited `TERMWIRE_SOCKET` and `TERMWIRE_EDITOR_PANE`
-- compose `@termwire/nvim` and `@termwire/tmux` directly to open and focus
+```text
+termwire_open({ path, line? })
+```
 
-## How it opens files
+`path` is required and resolves from the OpenCode tool-call directory. `line`
+is an optional positive 1-based integer. Opening is always an explicit tool
+call; files never open on their own.
 
-The plugin runs inside the OpenCode process and uses its inherited workspace
-environment. It calls the nvim and tmux adapters directly, so it has no CLI or
-`PATH` requirement. Opening is always an explicit tool invocation; files are
-never opened automatically.
-
-Phase 5 will add only in-memory changed/read-file tracking and selection; it is
-not implemented yet.
+The plugin reads `TERMWIRE_SOCKET` and `TERMWIRE_EDITOR_PANE` from the
+environment it inherits, so OpenCode must be started in a shell created by
+`termwire up`. Outside a workspace the tool fails with `not inside a termwire
+workspace`.
 
 ## Install
 
@@ -32,22 +34,18 @@ not implemented yet.
 bun add @termwire/opencode-plugin
 ```
 
-Configure OpenCode with the published package:
-
 ```json
 { "plugin": ["@termwire/opencode-plugin"] }
 ```
 
-## Development
-
-Load the local TypeScript entry only for source development:
+For source development in this repository, load the local entry instead:
 
 ```json
 { "plugin": ["./packages/opencode-plugin/src/index.ts"] }
 ```
 
-## Design principle
+## Boundary
 
-Keep workspace routing in the plugin and adapters. Its direct dependencies are
-`@opencode-ai/plugin`, `@termwire/nvim`, and `@termwire/tmux`; the CLI
-owns `termwire up` only.
+The plugin keeps workspace routing and nothing else. Its direct dependencies
+are `@opencode-ai/plugin`, `@termwire/nvim`, and `@termwire/tmux`. Workspace
+creation belongs to the CLI.

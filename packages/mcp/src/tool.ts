@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { OpenFileHandler } from "./open";
+import type { OpenFileHandler } from "./open.js";
 
 export const termwireOpenInputSchema = z.object({
   path: z.string().trim().min(1),

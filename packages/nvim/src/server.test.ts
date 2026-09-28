@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createNvim, type Exec, type ExecResult } from "./index";
-import { isRunning } from "./server";
+import { createNvim, type Exec, type ExecResult } from "./index.js";
+import { isRunning } from "./server.js";
 
 const result = (exitCode: number, stdout = "", stderr = ""): ExecResult => ({
   exitCode,

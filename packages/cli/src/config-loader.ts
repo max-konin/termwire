@@ -1,6 +1,6 @@
 import { isAbsolute, join } from "node:path";
 import { type ParseError, parse } from "jsonc-parser";
-import type { LoadedConfig } from "./config-types";
+import type { LoadedConfig } from "./config-types.js";
 
 export interface ConfigLoaderDependencies {
   env: Record<string, string | undefined>;

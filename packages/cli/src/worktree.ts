@@ -1,6 +1,6 @@
 import { realpath as resolveRealpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { sanitizeComponent } from "./identity";
+import { sanitizeComponent } from "./identity.js";
 
 export type GitExec = (
   argv: readonly string[],

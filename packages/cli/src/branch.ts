@@ -1,4 +1,4 @@
-import type { GitExec } from "./worktree";
+import type { GitExec } from "./worktree.js";
 
 export async function prepareBranch(exec: GitExec, cwd: string, name: string): Promise<void> {
   const existing = await exec(["git", "show-ref", "--verify", "--quiet", `refs/heads/${name}`], {

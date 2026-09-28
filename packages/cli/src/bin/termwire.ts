@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
-import { run } from "../index";
+#!/usr/bin/env node
+import { run } from "../index.js";
 
-process.exitCode = await run(Bun.argv.slice(2));
+process.exitCode = await run(process.argv.slice(2));

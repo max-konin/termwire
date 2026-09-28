@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { appendCommand, appendEnvironment, readPaneId, readWindowPaneIds } from "./command";
-import { ValidationError } from "./validation";
+import { appendCommand, appendEnvironment, readPaneId, readWindowPaneIds } from "./command.js";
+import { ValidationError } from "./validation.js";
 
 describe("appendEnvironment", () => {
   test("appends defined environment entries as repeated arguments", () => {

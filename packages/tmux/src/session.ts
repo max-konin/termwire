@@ -1,6 +1,11 @@
-import { appendCommand, appendEnvironment, readWindowPaneIds, type WindowPaneIds } from "./command";
-import { CommandError, type Exec, execute } from "./process";
-import { assertNotEmpty } from "./validation";
+import {
+  appendCommand,
+  appendEnvironment,
+  readWindowPaneIds,
+  type WindowPaneIds,
+} from "./command.js";
+import { CommandError, type Exec, execute } from "./process.js";
+import { assertNotEmpty } from "./validation.js";
 
 export interface NewSessionOptions {
   session: string;

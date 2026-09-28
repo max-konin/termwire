@@ -1,5 +1,5 @@
 import type { createTmux } from "@termwire/tmux";
-import type { LayoutConfig, PaneConfig } from "./config-schema";
+import type { LayoutConfig, PaneConfig } from "./config-schema.js";
 
 type MappedPane = { windowId: string; paneId: string };
 type PaneMappings = Map<string, Map<string, MappedPane>>;

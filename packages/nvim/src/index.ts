@@ -1,6 +1,6 @@
-export type { CreateNvimOptions } from "./create-nvim";
-export { createNvim } from "./create-nvim";
-export { openFile } from "./file";
-export type { Exec, ExecOptions, ExecResult } from "./process";
-export { CommandError } from "./process";
-export { ValidationError } from "./validation";
+export type { CreateNvimOptions } from "./create-nvim.js";
+export { createNvim } from "./create-nvim.js";
+export { openFile } from "./file.js";
+export type { Exec, ExecOptions, ExecResult } from "./process.js";
+export { CommandError } from "./process.js";
+export { ValidationError } from "./validation.js";

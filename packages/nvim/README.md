@@ -1,5 +1,8 @@
 # @termwire/nvim
 
+A typed adapter for talking to an **already running** Neovim instance over its
+RPC socket.
+
 ```bash
 bun add @termwire/nvim
 ```
@@ -8,38 +11,38 @@ bun add @termwire/nvim
 import { createNvim } from "@termwire/nvim";
 
 const nvim = createNvim();
-```
 
-A package for interacting with an **already running** Neovim instance.
-Responsible only for talking to the editor — with no Neovim-side plugins.
+if (await nvim.isRunning(socket)) {
+  await nvim.openFile(socket, "/repo/src/app.ts", 42);
+}
+```
 
 ## Why it exists
 
-The OpenCode plugin uses this package to open a requested file in the Neovim
-running in the workspace pane. It encapsulates communication with that editor
-over its socket.
-
-## Responsibilities
-
-- open a file in the running Neovim
-- jump to a given line
-- detect whether the instance is alive and responding
-
-tmux owns editor focus; this package only talks to Neovim.
+`termwire open`, the MCP server, and the OpenCode plugin all need to put a file
+in front of the user in the Neovim running in the workspace editor pane. This
+package is the one place that knows how to ask Neovim to do it.
 
 ## API
 
-`createNvim({ exec? })` returns an adapter with:
+`createNvim({ exec? })` returns:
 
-- `isRunning(socket)`: reports whether the server responds to a remote RPC probe.
-- `openFile(socket, file, line?)`: opens a file and optionally jumps to a positive line number.
+- `isRunning(socket)`: whether the server answers a remote RPC probe.
+- `openFile(socket, file, line?)`: opens a file, then jumps to a positive line
+  number when one is given.
 
-## Design principle
+## Design
 
-Communication uses Neovim's built-in RPC: `nvim --server <socket> --remote*`
-(Neovim ≥ 0.9). No external tools like `nvr` and no plugins — this is a PDR
-requirement. All calls go through an injectable `exec` function, so the package
-is testable without Neovim installed.
+Communication uses Neovim's built-in remote RPC, `nvim --server <socket>
+--remote*`, on Neovim 0.9 or newer. No `nvr`, and no Neovim-side plugin. That
+is a project requirement, not an implementation detail that might change.
 
-> Implementation details (socket, `--remote` flags) stay internal; only a
-> typed API is exposed.
+Every call goes through an injectable `exec`, so this package is testable
+without Neovim installed. The default `exec` uses `node:child_process`, so the
+package runs on Node and on Bun alike. Socket handling and `--remote` flags stay internal;
+only the typed API is exported.
+
+## Boundary
+
+This package talks to Neovim and nothing else. Editor focus belongs to tmux,
+and workspace policy belongs to the CLI.

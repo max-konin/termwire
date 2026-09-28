@@ -1,164 +1,123 @@
-# Workspace Agent
+# Termwire — Product Design Record
 
-**Status:** Draft v0.2
+**Status:** implemented through the `open` command and the Node runtime move.
+See [ROADMAP.md](ROADMAP.md) for per-phase status and what was dropped.
 
 ## Vision
 
-Workspace Bridge is a lightweight CLI that creates and manages an AI-powered development workspace.
+Termwire is a small CLI that creates a tmux workspace in which a coding agent
+and Neovim run side by side, and lets the agent put a file in front of the user
+in that editor.
 
-The initial version is focused exclusively on **OpenCode**, **tmux**, and **Neovim**.
+It targets tmux and Neovim specifically. It is agent-agnostic: any agent that
+can run a shell command works, and OpenCode and MCP clients get native tools for
+the same operation.
 
-The goal is to provide a seamless development experience without requiring Neovim plugins or manual tmux setup.
+The goal is a seamless workflow without a Neovim plugin and without manual tmux
+setup.
 
----
+## Problem
 
-# Problem
+Running a coding agent next to an editor normally requires the developer to
+manually create a tmux session, split windows and panes, start Neovim,
+configure an RPC socket, launch the agent, switch between the two, and then
+find the files the agent touched.
 
-Today an OpenCode workflow typically requires developers to manually:
+This is repetitive, easy to get wrong, and hard to standardize across projects.
+Termwire automates it.
 
-- create tmux sessions
-- split windows and panes
-- start Neovim
-- configure an RPC socket
-- launch OpenCode
-- switch between the agent and the editor
-- manually locate files modified by the agent
+## Non goals
 
-This setup is repetitive and difficult to standardize.
+Termwire is not an AI agent, an editor plugin, a tmux replacement, a session
+persistence framework, or a generic automation platform.
 
-Workspace Bridge automates the entire workflow.
+It does not track which files an agent changed. Git already answers that
+question, and a tracking layer would duplicate it for no gain. See
+[ROADMAP.md](ROADMAP.md) for the full reasoning behind dropping it.
 
----
+## Runtime
 
-# Goals
+Every published package runs on **Node 22.12 or newer**, the floor set by
+Commander 15. No published code may use a `Bun.*` API, and every relative
+import carries an explicit `.js` extension, because Node's ESM loader rejects
+extensionless specifiers.
 
-## Primary Goals
+The repository is developed with Bun: install, test, lint, and build. That is a
+toolchain choice and never a requirement on users. `bun run verify:node`
+executes the built CLI and MCP server under Node, and CI runs it on every push
+so the two cannot drift apart again.
 
-- Create a ready-to-use tmux workspace with a single command.
-- Support multiple parallel sessions per project via git worktrees.
-- Provide an explicit OpenCode tool to open files in the running editor.
-- Keep TermWire workspace identity stateless: no TermWire-owned persistent workspace state files.
-- Keep the implementation small and modular.
-- Avoid any Neovim plugin.
+Workspaces additionally need tmux 3.2 or newer, for pane environment variables,
+and Neovim 0.9 or newer, for remote RPC.
 
----
-
-# Non Goals
-
-The project is **not**:
-
-- an AI agent
-- an editor plugin
-- a tmux replacement
-- a session persistence framework
-- a generic automation platform
-
-Future support for other agents or editors is intentionally out of scope for the MVP.
-
----
-
-# Repository Structure
+## Repository structure
 
 ```text
 packages/
-    cli/
-    opencode-plugin/
-    tmux/
-    nvim/
+    cli/                # the termwire command: up and open
+    mcp/                # MCP server exposing termwire_open
+    opencode-plugin/    # native OpenCode tool
+    tmux/               # typed tmux adapter
+    nvim/               # typed Neovim RPC adapter
 ```
 
-The repository uses:
+The repository uses Bun workspaces, TypeScript, and Biome. TurboRepo is
+intentionally omitted.
 
-- Bun
-- Bun Workspaces
-- TypeScript
-- Biome
+All five packages version and publish together as one fixed Changesets group,
+because the CLI and the two agent integrations depend on the adapters and must
+never be installed at mismatched versions.
 
-TurboRepo is intentionally omitted.
+## Components
 
----
+### cli
 
-# Components
+The main entry point. Workspace identity is **stateless**: it is derived at `up`
+time and carried in environment variables, never written to disk. Optional JSONC
+files declare a layout, and only when a new session is created.
 
-## CLI
-
-The CLI is the main entry point. Runtime workspace identity is fully
-**stateless**: it is discovered from environment variables, never from
-persistent state on disk. Optional JSONC files declare a layout only when a new
-session is created.
-
-Responsibilities:
-
-- create workspaces (optionally in a new git worktree)
-- coordinate other packages
-
-The CLI owns `termwire up <name>` only. File opening is an OpenCode plugin tool, not a shell command.
-
-Commands:
+It owns two commands.
 
 ```bash
-termwire up <name>                         # create or attach to <project>-<name>
-termwire up <name> -w                       # use worktree name <name>
-termwire up <name> --worktree <wt-name>     # use explicit worktree name <wt-name>
+termwire up <name>                       # create or attach to <project>-<name>
+termwire up <name> -w [wt-name]          # use a Git worktree
+termwire up <name> -b <branch>           # select the exact branch
+termwire open <path>[:line]              # open a file in the workspace editor
+termwire open <path> --line <number>     # same, keeping the path verbatim
 ```
 
----
+`open` exists so that any agent with shell access can show the user a file,
+with nothing to install or register beyond the CLI itself.
 
-## tmux
+### tmux
 
-Responsible only for tmux operations.
+Owns tmux commands only: sessions, windows, panes with environment variables,
+key sending, focus, and existing-session detection. No agent logic and no
+Neovim logic belong here.
 
-Responsibilities:
+### nvim
 
-- create sessions
-- create windows
-- create panes (with environment variables)
-- send commands
-- detect existing sessions
+Owns talking to an already running Neovim: open a file, jump to a line, detect
+whether the instance responds. Communication uses built-in remote RPC,
+`nvim --server <socket> --remote*`. No `nvr` and no Neovim-side plugin, which is
+a requirement rather than an implementation detail.
 
-No OpenCode logic belongs here.
+### mcp
 
----
+A stdio MCP server exposing `termwire_open({ path, line? })`, for agents that
+should not run shell commands. It composes the nvim and tmux adapters directly
+and needs no `termwire` executable in `PATH`.
 
-## nvim
+### opencode-plugin
 
-Responsible only for interacting with Neovim.
+A native OpenCode plugin exposing the same tool inside the OpenCode process, so
+no separate server is needed. It composes the adapters directly and holds as
+little logic as possible.
 
-Responsibilities:
+## Workspace
 
-- open files
-- jump to line
-- detect running instance
-
-Implementation details (RPC via `nvim --server`) are internal.
-
----
-
-## opencode-plugin
-
-A lightweight OpenCode plugin. It depends on the OpenCode plugin API and directly
-composes `@termwire/nvim` and `@termwire/tmux` adapters.
-
-Responsibilities:
-
-- expose explicit `termwire_open({ path, line? })` execution
-- read inherited workspace environment and open through the nvim/tmux adapters
-- add in-memory changed/read-file tracking and selection only in Phase 5
-
-The plugin should contain as little logic as possible.
-
----
-
-# Workspace
-
-Running
-
-```bash
-termwire up dev
-```
-
-creates or attaches to the tmux session `<project>-dev`. Without a selected
-layout, a newly created workspace has the two-window default layout:
+`termwire up dev` creates or attaches to the tmux session `<project>-dev`.
+Without a selected layout a new workspace gets two windows:
 
 ```text
 session
@@ -166,150 +125,116 @@ session
 └── shell:  user's default shell
 ```
 
-Each session gets a unique name and a unique Neovim socket
-(`/tmp/termwire/<session>.sock`). Every final workspace process receives the
+Each session gets a unique name and a unique Neovim socket at
+`/tmp/termwire/<session>.sock`. Every final workspace process receives the
 workspace environment:
 
-| Variable                 | Meaning                         |
-| ------------------------ | ------------------------------- |
-| `TERMWIRE_SESSION`     | tmux session name               |
-| `TERMWIRE_SOCKET`      | Neovim RPC socket path          |
+| Variable | Meaning |
+| --- | --- |
+| `TERMWIRE_SESSION` | tmux session name |
+| `TERMWIRE_SOCKET` | Neovim RPC socket path |
 | `TERMWIRE_EDITOR_PANE` | tmux pane id of the editor pane |
 
-OpenCode is not started automatically. The user may start it from the shell
-and reshape windows and panes with ordinary tmux commands. TermWire records no
-persistent workspace state. A configured new session instead creates its
-declared windows and panes; each effective layout contains exactly one
-editor-role pane, as described below.
+Those three variables are the whole of Termwire's state. There is no state file
+to go stale, and no cleanup beyond `tmux kill-session` and `git worktree
+remove`.
 
----
+No agent starts automatically. The user starts one in a shell pane, declares it
+as a pane command in a layout, or reshapes the workspace with ordinary tmux
+commands afterwards.
 
-# MVP Features
+## Features
 
-## Workspace Creation
-
-Create a fully configured workspace.
-
-Includes:
-
-- tmux session
-- default `editor` window running `nvim --listen <socket>`
-- default free `shell` window
+### Workspace creation
 
 `termwire up <name>` works in the current directory and always addresses
-`<project>-<name>`; running it again attaches immediately to an existing
-session without worktree validation or mutation. With bare `-w` or
-`--worktree`, the worktree name is `<name>`; an explicit optional value chooses
-the worktree name. A matching registered worktree is safely reused; conflicts
-fail clearly. Worktrees are siblings named `../<project>-<worktree-name>` on
-the matching branch. Removing a worktree is manual (`git worktree remove`) in
-the MVP.
+`<project>-<name>`. Running it again attaches immediately, without validating or
+mutating Git state.
 
----
+With bare `-w` or `--worktree`, the worktree name is `<name>`; an explicit value
+chooses it instead. Worktrees are siblings named `../<project>-<worktree-name>`.
+A matching registered worktree is safely reused and conflicts fail clearly.
+`--branch` selects the exact Git branch; otherwise the worktree directory key is
+also the branch name. Slashes survive in branch names and are replaced only in
+directory names. Without `-w`, Git changes only when `--branch` is present.
 
-## File Tracking (Phase 5)
+Removing a worktree stays manual.
 
-The OpenCode plugin keeps the current session state **in memory**:
+### Opening a file
 
-- edited files
-- mentioned/read files
+Three surfaces expose one behavior: the `termwire open` command, the MCP tool,
+and the OpenCode plugin tool. Each resolves the path, reads the inherited
+`TERMWIRE_SOCKET`, checks that Neovim answers, opens through the nvim adapter,
+then focuses the editor pane through the tmux adapter when
+`TERMWIRE_EDITOR_PANE` is known.
 
-This information lives only inside the plugin process and only for the active
-session. Nothing is written to disk.
+Without a socket, each fails with `not inside a termwire workspace`. A file
+never opens automatically; opening is always an explicit action.
 
----
+Users configure one surface, not several. Two of them put two identical tools in
+the same model's context.
 
-## Open File (Phase 4)
+## Configuration
 
-OpenCode explicitly invokes `termwire_open({ path, line? })`. The tool resolves
-the path from the tool-call directory, reads inherited `TERMWIRE_SOCKET` and
-`TERMWIRE_EDITOR_PANE`, opens through `@termwire/nvim`, then focuses through
-`@termwire/tmux`. It requires no `termwire` executable in `PATH`.
-
-Outside a workspace (without `TERMWIRE_SOCKET` or `TERMWIRE_EDITOR_PANE`)
-the tool fails with a clear error. It does not track or select files; Phase 5
-adds only in-memory changed/read-file tracking and selection.
-
-Files are **never opened automatically**.
-
----
-
-# Configuration
-
-Workspace identity is derived at `up` time and carried by environment variables;
-it is not persistent state. Optional JSONC layout sources are global
-`$XDG_CONFIG_HOME/termwire/config.jsonc` (falling back to
-`~/.config/termwire/config.jsonc`) and project
+Optional JSONC layout sources are global
+`$XDG_CONFIG_HOME/termwire/config.jsonc`, falling back to
+`~/.config/termwire/config.jsonc`, and project
 `<resolved-workspace-git-root>/.termwire.jsonc`. A worktree invocation reads the
-target worktree file. Both present sources are validated; project `windows`
-replace, rather than merge with, global `windows`. Version-only files fall
-through, and no selected `windows` uses the editor-then-shell default.
+target worktree's file. Both present sources are validated. Project `windows`
+replace global `windows` rather than merging. Version-only files fall through,
+and no selected `windows` uses the editor-then-shell default.
 
-The root requires `version: 1`; window names and pane ids are unique and
+The root requires `version: 1`. Window names and pane ids are unique and
 nonempty. Panes are ordered: the first has no split fields, while each later
-pane names an earlier same-window `splitFrom` and uses `horizontal` or
-`vertical`, with optional integer `sizePercent` 1..99. Commands are argv arrays,
-not shell strings; there is exactly one `role: "editor"` and it has no command.
-There is no interpolation, custom cwd/environment, or configuration/state
-persistence. Existing sessions attach without rereading configuration.
+pane names an earlier same-window `splitFrom` and sets `direction` to
+`horizontal` or `vertical`, with an optional integer `sizePercent` from 1
+through 99. Commands are argv arrays, not shell strings. Exactly one pane has
+`role: "editor"` and it carries no command.
 
-Parse diagnostics include source and one-based location; validation diagnostics
-include source and JSON path. Configuration is resolved before tmux side effects,
-and post-session setup failures clean up best-effort without replacing the
-original error. OpenCode loads the local plugin through the repository's
-`opencode.json` registration.
+There is no interpolation, custom pane cwd, custom pane environment, or
+configuration persistence. Existing sessions attach without rereading
+configuration.
 
----
+Parse diagnostics name the source and a one-based location; validation
+diagnostics name the source and a JSON path. Configuration resolves before any
+socket or tmux side effect. Once a new session exists, a layout or attach
+failure triggers best-effort cleanup that preserves the original error.
 
-# Design Principles
+## Design principles
 
 - Explicit over automatic.
 - Stateless over persisted.
 - Small packages with clear responsibilities.
 - No editor plugin required.
-- No unnecessary abstractions.
+- Published output runs on the mainstream runtime, whatever the repository is
+  built with.
 - Build only what the current use case requires.
 
----
+## Future ideas
 
-# Future Ideas
+Not planned, and not allowed to shape the current architecture.
 
-Not part of the MVP.
-
-- `termwire doctor` / `termwire status`
-- `termwire down` and worktree cleanup
-- `termwire files` / `termwire open-last` in the shell
+- `termwire down`, `termwire ls`, and worktree cleanup
+- `termwire doctor` and `termwire status`
 - Additional configuration sources or options
-- Telescope integration
-- fzf integration
-- Session history
-- Workspace persistence
-- Support for additional editors
-- Support for additional AI agents
+- Telescope and fzf integration
+- Session history and workspace persistence
+- Support for additional editors, such as VS Code, Zed, or Helix
+- Support for additional agents beyond a shell command
 
-These features should not influence the initial architecture.
+## Success criteria
 
----
+A developer installs Termwire, runs `termwire up <name>`, and starts working.
 
-# Success Criteria
+Concretely:
 
-A developer should be able to:
-
-1. Install Workspace Bridge.
-2. Run:
-
-```bash
-termwire up <name>
-```
-
-1. Start coding immediately.
-
-Without a selected layout, the workspace must provide the default editor and
-shell windows. A configured new session must create its declared windows and
-panes and contain exactly one editor-role pane. Every workspace must provide
-the final-process workspace environment, safe optional worktree reuse, and
-repeat attach behavior without TermWire-owned persistent state. OpenCode
-must explicitly open a requested file with `termwire_open({ path, line? })`
-through the nvim/tmux adapters, without routing through an `termwire`
-executable in `PATH`; files never open automatically. Phase 5 changed/read-file
-tracking and selection remain later work.
+- Without a layout, a new workspace provides the default editor and shell
+  windows. With one, it creates the declared windows and panes and contains
+  exactly one editor-role pane.
+- Every final process receives the three workspace variables.
+- Optional worktree reuse is safe, and a repeat `up` attaches without Termwire
+  state on disk.
+- A requested file opens at its line in the Neovim of that same session, and
+  never opens on its own.
+- The published CLI and MCP server start under plain Node, with no Bun
+  installed.

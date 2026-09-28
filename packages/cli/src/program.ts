@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import {
   mkdir as mkdirDirectory,
   readFile as readFileFromDisk,
@@ -5,17 +6,20 @@ import {
   unlink as unlinkFile,
 } from "node:fs/promises";
 import { homedir as getHomeDirectory } from "node:os";
+import { createNvim } from "@termwire/nvim";
 import { createTmux } from "@termwire/tmux";
 import { Command, CommanderError } from "commander";
-import { prepareBranch } from "./branch";
-import { createConfigLoader } from "./config-loader";
-import { resolveLayout } from "./config-validation";
-import { createLayout } from "./layout";
-import { type UpRequest, up } from "./up";
-import { findGitRoot, type GitExec, prepareWorktree } from "./worktree";
+import { prepareBranch } from "./branch.js";
+import { createConfigLoader } from "./config-loader.js";
+import { resolveLayout } from "./config-validation.js";
+import { createLayout } from "./layout.js";
+import { type OpenRequest, type OpenResult, open } from "./open.js";
+import { type UpRequest, up } from "./up.js";
+import { findGitRoot, type GitExec, prepareWorktree } from "./worktree.js";
 
 export interface ProgramDependencies {
   up: (request: UpRequest) => Promise<void>;
+  open: (request: OpenRequest) => Promise<OpenResult>;
   writeError: (message: string) => void;
   writeOutput: (message: string) => void;
 }
@@ -32,20 +36,43 @@ export interface RuntimeDependencies {
   unlink: (path: string) => Promise<void>;
 }
 
+export interface RuntimeOpenDependencies {
+  createNvim: () => ReturnType<typeof createNvim>;
+  createTmux: () => ReturnType<typeof createTmux>;
+  cwd: () => string;
+  env: Record<string, string | undefined>;
+}
+
 export const executeGit: GitExec = async (argv, options) => {
-  const spawn = () => Bun.spawn([...argv], { cwd: options?.cwd, stdout: "pipe", stderr: "pipe" });
-  let child: ReturnType<typeof spawn>;
-  try {
-    child = spawn();
-  } catch (error) {
-    throw new Error(`git execution failed: ${argv.join(" ")}`, { cause: error });
+  const [command, ...args] = argv;
+
+  if (command === undefined) {
+    throw new Error("git execution failed: empty command");
   }
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  return { exitCode, stdout, stderr };
+
+  return await new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options?.cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+
+    child.once("error", (cause) => {
+      reject(new Error(`git execution failed: ${argv.join(" ")}`, { cause }));
+    });
+    child.once("close", (code) => {
+      resolve({ exitCode: code ?? 1, stdout, stderr });
+    });
+  });
 };
 
 export async function removeStaleSocket(
@@ -104,6 +131,15 @@ export function createRuntimeUp(dependencies: Partial<RuntimeDependencies> = {})
     });
 }
 
+export function createRuntimeOpen(dependencies: Partial<RuntimeOpenDependencies> = {}) {
+  const nvim = (dependencies.createNvim ?? (() => createNvim()))();
+  const tmux = (dependencies.createTmux ?? (() => createTmux()))();
+  const cwd = dependencies.cwd ?? (() => process.cwd());
+  const env = dependencies.env ?? process.env;
+
+  return (request: OpenRequest) => open(request, { cwd, env, nvim, tmux });
+}
+
 export function createProgram(dependencies: ProgramDependencies): Command {
   const program = new Command().name("termwire").configureOutput({
     writeErr: dependencies.writeError,
@@ -114,6 +150,7 @@ export function createProgram(dependencies: ProgramDependencies): Command {
 
   program
     .command("up <name>")
+    .description("create or attach to the workspace tmux session <project>-<name>")
     .option("-w, --worktree [wt-name]", "create or reuse a Git worktree")
     .option("-b, --branch <name>", "select the exact Git branch")
     .addHelpText(
@@ -141,6 +178,29 @@ Branch and worktree selection:
       });
     });
 
+  program
+    .command("open <target>")
+    .description("open a file in this workspace's editor and focus it")
+    .option("-l, --line <number>", "line to jump to, instead of a path:line suffix")
+    .addHelpText(
+      "after",
+      `
+Target syntax:
+  A trailing :<line> selects the line, so src/app.ts:42 opens line 42.
+  With --line, the target is used verbatim, which keeps a literal colon in a name.
+  Relative paths resolve from the current directory.
+  Requires a shell created by termwire up, which exports TERMWIRE_SOCKET.
+`,
+    )
+    .action(async (target: string, options: { line?: string }) => {
+      const result = await dependencies.open({
+        target,
+        ...(options.line === undefined ? {} : { line: options.line }),
+      });
+      const suffix = result.line === undefined ? "" : ` at line ${result.line}`;
+      dependencies.writeOutput(`Opened ${result.path}${suffix}\n`);
+    });
+
   return program;
 }
 
@@ -152,6 +212,7 @@ export async function run(
     dependencies.writeError ?? ((message: string) => process.stderr.write(message));
   const program = createProgram({
     up: dependencies.up ?? createRuntimeUp(),
+    open: dependencies.open ?? createRuntimeOpen(),
     writeError,
     writeOutput: dependencies.writeOutput ?? ((message: string) => process.stdout.write(message)),
   });

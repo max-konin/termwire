@@ -1,6 +1,6 @@
-import { appendCommand, appendEnvironment, readPaneId } from "./command";
-import { CommandError, type Exec, execute } from "./process";
-import { assertNotEmpty, ValidationError } from "./validation";
+import { appendCommand, appendEnvironment, readPaneId } from "./command.js";
+import { CommandError, type Exec, execute } from "./process.js";
+import { assertNotEmpty, ValidationError } from "./validation.js";
 
 export interface SplitPaneOptions {
   target: string;
