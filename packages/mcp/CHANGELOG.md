@@ -1,5 +1,12 @@
 # @termwire/mcp
 
+## 0.4.1
+
+### Patch Changes
+
+- @termwire/tmux@0.4.1
+- @termwire/nvim@0.4.1
+
 ## 0.4.0
 
 ### Patch Changes

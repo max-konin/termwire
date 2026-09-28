@@ -1,5 +1,20 @@
 # @termwire/cli
 
+## 0.4.1
+
+### Patch Changes
+
+- `termwire --version` prints the installed release.
+
+  There was no way to tell which version was installed: both `--version` and `-V`
+  failed with `unknown option`, leaving `npm ls -g @termwire/cli` as the only
+  answer. The number is read from the package manifest at runtime, the way
+  `@termwire/mcp` already reports its own version, so no build step has to inject
+  it and a checkout reports the same way an install does.
+
+  - @termwire/tmux@0.4.1
+  - @termwire/nvim@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes
