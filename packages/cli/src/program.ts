@@ -1,25 +1,41 @@
 import { spawn } from "node:child_process";
 import {
+  appendFile as appendFileToDisk,
   mkdir as mkdirDirectory,
+  readdir as readDirectory,
   readFile as readFileFromDisk,
   stat,
   unlink as unlinkFile,
 } from "node:fs/promises";
 import { homedir as getHomeDirectory } from "node:os";
+import { dirname, resolve as resolvePath } from "node:path";
 import { createNvim } from "@termwire/nvim";
 import { createTmux } from "@termwire/tmux";
 import { Command, CommanderError } from "commander";
 import { prepareBranch } from "./branch.js";
 import { createConfigLoader } from "./config-loader.js";
 import { resolveLayout } from "./config-validation.js";
+import { type Exec, spawnCapture } from "./exec.js";
 import { createLayout } from "./layout.js";
 import { type OpenRequest, type OpenResult, open } from "./open.js";
+import { createProcessScanner } from "./process-scan.js";
+import {
+  formatReapFailure,
+  formatReapReport,
+  type KillOutcome,
+  parseTmuxServerPid,
+  type ReapSignal,
+  reapLogPath,
+  reapSession,
+} from "./reap.js";
+import { ensureReapHook, reapCommandName } from "./reap-hook.js";
 import { type UpRequest, up } from "./up.js";
 import { findGitRoot, type GitExec, prepareWorktree } from "./worktree.js";
 
 export interface ProgramDependencies {
   up: (request: UpRequest) => Promise<void>;
   open: (request: OpenRequest) => Promise<OpenResult>;
+  reap: (session: string) => Promise<void>;
   writeError: (message: string) => void;
   writeOutput: (message: string) => void;
 }
@@ -29,11 +45,30 @@ export interface RuntimeDependencies {
   cwd: () => string;
   env: Record<string, string | undefined>;
   homedir: () => string;
+  execPath: string;
+  scriptPath: string | undefined;
+  warn: (message: string) => void;
   readFile: (path: string, encoding: "utf8") => Promise<string>;
   gitExec: GitExec;
   mkdir: (path: string, options: { recursive: true }) => Promise<unknown>;
   pathExists: (path: string) => Promise<boolean>;
   unlink: (path: string) => Promise<void>;
+}
+
+export interface RuntimeReapDependencies {
+  env: Record<string, string | undefined>;
+  homedir: () => string;
+  platform: string;
+  uid: number;
+  pid: number;
+  exec: Exec;
+  readdir: (path: string) => Promise<string[]>;
+  readFile: (path: string) => Promise<string>;
+  kill: (pid: number, signal: ReapSignal) => KillOutcome;
+  wait: (milliseconds: number) => Promise<void>;
+  appendFile: (path: string, contents: string) => Promise<void>;
+  mkdir: (path: string, options: { recursive: true }) => Promise<unknown>;
+  now: () => Date;
 }
 
 export interface RuntimeOpenDependencies {
@@ -109,6 +144,9 @@ export function createRuntimeUp(dependencies: Partial<RuntimeDependencies> = {})
       }
     });
   const unlink = dependencies.unlink ?? unlinkFile;
+  const execPath = dependencies.execPath ?? process.execPath;
+  const scriptPath = "scriptPath" in dependencies ? dependencies.scriptPath : process.argv[1];
+  const warn = dependencies.warn ?? ((message: string) => process.stderr.write(message));
   const loader = createConfigLoader({ env, homedir, exists: pathExists, readFile });
   const loadGlobalConfig = loader.loadGlobal;
   const loadProjectConfig = loader.loadProject;
@@ -124,11 +162,101 @@ export function createRuntimeUp(dependencies: Partial<RuntimeDependencies> = {})
       },
       removeFile: (path) => removeStaleSocket(path, unlink),
       tmux,
+      installReapHook: () => installReapHook({ tmux, execPath, scriptPath, warn }),
       loadGlobalConfig,
       loadProjectConfig,
       resolveLayout,
       createLayout,
     });
+}
+
+/**
+ * Installing the cleanup hook is best effort: a workspace is still usable when the
+ * tmux server refuses the hook, so `up` only warns.
+ */
+async function installReapHook(options: {
+  tmux: ReturnType<typeof createTmux>;
+  execPath: string;
+  scriptPath: string | undefined;
+  warn: (message: string) => void;
+}): Promise<void> {
+  try {
+    if (options.scriptPath === undefined) {
+      throw new Error("the termwire script path is unknown");
+    }
+    await ensureReapHook({
+      tmux: options.tmux,
+      execPath: options.execPath,
+      scriptPath: resolvePath(options.scriptPath),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    options.warn(`termwire: session cleanup hook not installed: ${message}\n`);
+  }
+}
+
+export function killProcess(pid: number, signal: ReapSignal): KillOutcome {
+  try {
+    process.kill(pid, signal);
+    return "signalled";
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ESRCH") return "gone";
+    if (code === "EPERM") return "denied";
+    throw error;
+  }
+}
+
+export function createRuntimeReap(dependencies: Partial<RuntimeReapDependencies> = {}) {
+  const env = dependencies.env ?? process.env;
+  const homedir = dependencies.homedir ?? getHomeDirectory;
+  const platform = dependencies.platform ?? process.platform;
+  const uid = dependencies.uid ?? process.getuid?.() ?? 0;
+  const pid = dependencies.pid ?? process.pid;
+  const exec = dependencies.exec ?? spawnCapture;
+  const readdir = dependencies.readdir ?? ((path: string) => readDirectory(path));
+  const readFile = dependencies.readFile ?? ((path: string) => readFileFromDisk(path, "utf8"));
+  const kill = dependencies.kill ?? killProcess;
+  const wait =
+    dependencies.wait ??
+    ((milliseconds: number) =>
+      new Promise<void>((resolveWait) => {
+        setTimeout(resolveWait, milliseconds);
+      }));
+  const appendFile =
+    dependencies.appendFile ??
+    ((path: string, contents: string) => appendFileToDisk(path, contents));
+  const mkdir = dependencies.mkdir ?? mkdirDirectory;
+  const now = dependencies.now ?? (() => new Date());
+
+  const record = async (line: string) => {
+    const path = reapLogPath({ env, homedir });
+    try {
+      await mkdir(dirname(path), { recursive: true });
+      await appendFile(path, line);
+    } catch {
+      // A missing log must not hide the reap itself.
+    }
+  };
+
+  return async (session: string) => {
+    try {
+      const serverPid = parseTmuxServerPid(env.TMUX);
+      const report = await reapSession(session, {
+        scan: createProcessScanner({ platform, exec, uid, readdir, readFile }),
+        kill,
+        wait,
+        selfPid: pid,
+        // The reap inherits the tmux server's environment, TMUX included, which is
+        // the only way back to the server it must not kill.
+        ...(serverPid === undefined ? {} : { serverPid }),
+      });
+      await record(formatReapReport(report, now().toISOString()));
+    } catch (error) {
+      await record(formatReapFailure(session, error, now().toISOString()));
+      throw error;
+    }
+  };
 }
 
 export function createRuntimeOpen(dependencies: Partial<RuntimeOpenDependencies> = {}) {
@@ -201,6 +329,15 @@ Target syntax:
       dependencies.writeOutput(`Opened ${result.path}${suffix}\n`);
     });
 
+  // Part of the `up` lifecycle, not a user-facing command: the global tmux
+  // `session-closed` hook installed by `up` invokes it with the closed session.
+  program
+    .command(`${reapCommandName} <session>`, { hidden: true })
+    .description("kill the processes a closed workspace session left behind")
+    .action(async (session: string) => {
+      await dependencies.reap(session);
+    });
+
   return program;
 }
 
@@ -213,6 +350,7 @@ export async function run(
   const program = createProgram({
     up: dependencies.up ?? createRuntimeUp(),
     open: dependencies.open ?? createRuntimeOpen(),
+    reap: dependencies.reap ?? createRuntimeReap(),
     writeError,
     writeOutput: dependencies.writeOutput ?? ((message: string) => process.stdout.write(message)),
   });

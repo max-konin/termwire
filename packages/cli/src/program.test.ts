@@ -1,20 +1,28 @@
 import { expect, mock, test } from "bun:test";
 import type { createNvim as createNvimAdapter } from "@termwire/nvim";
 import type { createTmux as createTmuxAdapter } from "@termwire/tmux";
+import type { Exec } from "./exec.js";
 import type { OpenRequest, OpenResult } from "./open.js";
 import {
   createProgram,
   createRuntimeOpen,
+  createRuntimeReap,
   createRuntimeUp,
   executeGit,
   removeStaleSocket,
   run,
 } from "./program.js";
+import type { KillOutcome, ReapSignal } from "./reap.js";
+import { createReapHookCommand } from "./reap-hook.js";
 import type { UpRequest } from "./up.js";
 import type { GitExec } from "./worktree.js";
 
 function createOpenStub(result: OpenResult = { path: "/repo/src/app.ts", line: 42 }) {
   return mock<(request: OpenRequest) => Promise<OpenResult>>().mockResolvedValue(result);
+}
+
+function createReapStub() {
+  return mock<(session: string) => Promise<void>>().mockResolvedValue();
 }
 
 test("normalizes supported up worktree forms", async () => {
@@ -41,7 +49,13 @@ test("normalizes supported up worktree forms", async () => {
     const up = mock<(request: UpRequest) => Promise<void>>().mockResolvedValue();
     const writeError = mock<(message: string) => void>();
     const writeOutput = mock<(message: string) => void>();
-    const program = createProgram({ up, open: createOpenStub(), writeError, writeOutput });
+    const program = createProgram({
+      up,
+      open: createOpenStub(),
+      reap: createReapStub(),
+      writeError,
+      writeOutput,
+    });
 
     await program.parseAsync(argv, { from: "user" });
 
@@ -131,6 +145,7 @@ test("does not read config files when attaching an existing runtime session", as
     readFile,
     pathExists,
     gitExec: mock<GitExec>().mockResolvedValue({ exitCode: 0, stdout: "/repo\n", stderr: "" }),
+    warn: () => {},
   });
 
   await runtimeUp({ name: "dev" });
@@ -174,6 +189,7 @@ test("reads global then project config for a new runtime session", async () => {
       ),
     pathExists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
     unlink: mock<(path: string) => Promise<void>>().mockResolvedValue(),
+    warn: () => {},
   });
 
   await runtimeUp({ name: "dev" });
@@ -202,7 +218,15 @@ test("wires runtime requests through Git discovery and existing-session attach",
   const pathExists = mock<(path: string) => Promise<boolean>>().mockResolvedValue(false);
   const unlink = mock<(path: string) => Promise<void>>().mockResolvedValue();
 
-  const runtimeUp = createRuntimeUp({ createTmux, gitExec, cwd, mkdir, pathExists, unlink });
+  const runtimeUp = createRuntimeUp({
+    createTmux,
+    gitExec,
+    cwd,
+    mkdir,
+    pathExists,
+    unlink,
+    warn: () => {},
+  });
   await runtimeUp({ name: "dev", worktree: "feature" });
 
   expect(createTmux).toHaveBeenCalledTimes(1);
@@ -252,6 +276,7 @@ test("wires runtime branch preparation before creating a new session", async () 
       ),
     pathExists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(false),
     unlink: mock<(path: string) => Promise<void>>().mockResolvedValue(),
+    warn: () => {},
   });
 
   await runtimeUp({ name: "dev", branch: "feature/api" });
@@ -440,4 +465,202 @@ test("wires runtime open through the injected adapters and environment", async (
   expect(openFile).toHaveBeenCalledWith("/tmp/termwire/repo-dev.sock", "/repo/src/app.ts", 42);
   expect(selectWindow).toHaveBeenCalledWith("%3");
   expect(selectPane).toHaveBeenCalledWith("%3");
+});
+
+test("routes the hidden reap command and keeps it out of help", async () => {
+  const reap = createReapStub();
+  const writeOutput = mock<(message: string) => void>();
+  const writeError = mock<(message: string) => void>();
+
+  expect(
+    await run(["_reap", "repo-dev"], {
+      up: mock<(request: UpRequest) => Promise<void>>().mockResolvedValue(),
+      open: createOpenStub(),
+      reap,
+      writeError,
+      writeOutput,
+    }),
+  ).toBe(0);
+  expect(reap).toHaveBeenCalledWith("repo-dev");
+
+  await run(["--help"], {
+    up: mock<(request: UpRequest) => Promise<void>>().mockResolvedValue(),
+    open: createOpenStub(),
+    reap,
+    writeError,
+    writeOutput,
+  });
+
+  const help = writeOutput.mock.calls.map(([message]) => message).join("");
+  expect(help).toContain("up [options] <name>");
+  expect(help).not.toContain("_reap");
+});
+
+test("installs the cleanup hook with absolute runtime paths", async () => {
+  const showHooks = mock<() => Promise<never[]>>().mockResolvedValue([]);
+  const setHook = mock<(options: unknown) => Promise<void>>().mockResolvedValue();
+  const tmux = {
+    hasSession: mock<() => Promise<boolean>>().mockResolvedValue(true),
+    attach: mock<() => Promise<void>>().mockResolvedValue(),
+    showHooks,
+    setHook,
+  } as unknown as ReturnType<typeof createTmuxAdapter>;
+  const warn = mock<(message: string) => void>();
+
+  const runtimeUp = createRuntimeUp({
+    createTmux: () => tmux,
+    cwd: () => "/repo",
+    gitExec: mock<GitExec>().mockResolvedValue({ exitCode: 0, stdout: "/repo\n", stderr: "" }),
+    execPath: "/usr/local/bin/node",
+    scriptPath: "/opt/termwire/bin/termwire.js",
+    warn,
+  });
+
+  await runtimeUp({ name: "dev" });
+
+  expect(showHooks).toHaveBeenCalledWith({ global: true });
+  expect(setHook).toHaveBeenCalledWith({
+    name: "session-closed",
+    command: createReapHookCommand({
+      execPath: "/usr/local/bin/node",
+      scriptPath: "/opt/termwire/bin/termwire.js",
+    }),
+    global: true,
+    append: true,
+  });
+  expect(warn).not.toHaveBeenCalled();
+});
+
+test.each([
+  ["the tmux server refuses the hook", "/opt/termwire/bin/termwire.js"],
+  ["the script path is unknown", undefined],
+])("warns and still brings the workspace up when %s", async (_label, scriptPath) => {
+  const tmux = {
+    hasSession: mock<() => Promise<boolean>>().mockResolvedValue(true),
+    attach: mock<() => Promise<void>>().mockResolvedValue(),
+    showHooks: mock<() => Promise<never[]>>().mockRejectedValue(new Error("no server")),
+    setHook: mock<(options: unknown) => Promise<void>>().mockResolvedValue(),
+  } as unknown as ReturnType<typeof createTmuxAdapter>;
+  const warn = mock<(message: string) => void>();
+
+  const runtimeUp = createRuntimeUp({
+    createTmux: () => tmux,
+    cwd: () => "/repo",
+    gitExec: mock<GitExec>().mockResolvedValue({ exitCode: 0, stdout: "/repo\n", stderr: "" }),
+    execPath: "/usr/local/bin/node",
+    scriptPath,
+    warn,
+  });
+
+  await runtimeUp({ name: "dev" });
+
+  expect(warn.mock.calls[0]?.[0]).toContain("termwire: session cleanup hook not installed:");
+  expect(tmux.attach).toHaveBeenCalledWith("repo-dev");
+});
+
+test("reports what a runtime reap killed in the log", async () => {
+  const appendFile = mock<(path: string, contents: string) => Promise<void>>().mockResolvedValue();
+  const mkdir =
+    mock<(path: string, options: { recursive: true }) => Promise<unknown>>().mockResolvedValue(
+      undefined,
+    );
+  const kill = mock<(pid: number, signal: ReapSignal) => KillOutcome>().mockReturnValue("gone");
+  const exec = mock<Exec>(async (argv) =>
+    argv.includes("-Eww")
+      ? {
+          exitCode: 0,
+          stdout: " 900 1 /usr/local/bin/node /repo/dev.js TERMWIRE_SESSION=repo-dev\n",
+          stderr: "",
+        }
+      : { exitCode: 0, stdout: " 900 /usr/local/bin/node /repo/dev.js\n", stderr: "" },
+  );
+
+  const runtimeReap = createRuntimeReap({
+    env: { XDG_STATE_HOME: "/state" },
+    homedir: () => "/home/max",
+    platform: "darwin",
+    uid: 501,
+    pid: 4242,
+    exec,
+    kill,
+    wait: async () => {},
+    appendFile,
+    mkdir,
+    now: () => new Date("2026-09-28T10:00:00.000Z"),
+  });
+
+  await runtimeReap("repo-dev");
+
+  expect(kill).toHaveBeenCalledWith(900, "SIGTERM");
+  expect(mkdir).toHaveBeenCalledWith("/state/termwire", { recursive: true });
+  expect(appendFile).toHaveBeenCalledWith(
+    "/state/termwire/reap.log",
+    "2026-09-28T10:00:00.000Z session=repo-dev targets=900 terminated=900 killed=- survived=- denied=- unlabeled=-\n",
+  );
+});
+
+test("never kills the tmux server named by TMUX, even when it carries the label", async () => {
+  const appendFile = mock<(path: string, contents: string) => Promise<void>>().mockResolvedValue();
+  const kill = mock<(pid: number, signal: ReapSignal) => KillOutcome>().mockReturnValue("gone");
+  const listing =
+    " 700 1 tmux new-session -d -s repo-dev TERMWIRE_SESSION=repo-dev\n" +
+    " 900 1 /usr/local/bin/node /repo/dev.js TERMWIRE_SESSION=repo-dev\n";
+  const exec = mock<Exec>(async (argv) =>
+    argv.includes("-Eww")
+      ? { exitCode: 0, stdout: listing, stderr: "" }
+      : {
+          exitCode: 0,
+          stdout: " 700 tmux new-session -d -s repo-dev\n 900 /usr/local/bin/node /repo/dev.js\n",
+          stderr: "",
+        },
+  );
+
+  const runtimeReap = createRuntimeReap({
+    env: { XDG_STATE_HOME: "/state", TMUX: "/private/tmp/tmux-501/default,700,0" },
+    homedir: () => "/home/max",
+    platform: "darwin",
+    uid: 501,
+    pid: 4242,
+    exec,
+    kill,
+    wait: async () => {},
+    appendFile,
+    mkdir: async () => undefined,
+    now: () => new Date("2026-09-28T10:00:00.000Z"),
+  });
+
+  await runtimeReap("repo-dev");
+
+  expect(kill).toHaveBeenCalledWith(900, "SIGTERM");
+  expect(kill).not.toHaveBeenCalledWith(700, "SIGTERM");
+  expect(appendFile.mock.calls[0]?.[1]).toContain("targets=900");
+});
+
+test("records a failed runtime reap and reports it as a command failure", async () => {
+  const appendFile = mock<(path: string, contents: string) => Promise<void>>().mockResolvedValue();
+  const writeError = mock<(message: string) => void>();
+  const reap = createRuntimeReap({
+    env: { XDG_STATE_HOME: "/state" },
+    homedir: () => "/home/max",
+    platform: "plan9",
+    appendFile,
+    mkdir: async () => undefined,
+    now: () => new Date("2026-09-28T10:00:00.000Z"),
+  });
+
+  expect(
+    await run(["_reap", "repo-dev"], {
+      up: mock<(request: UpRequest) => Promise<void>>().mockResolvedValue(),
+      open: createOpenStub(),
+      reap,
+      writeError,
+      writeOutput: mock<(message: string) => void>(),
+    }),
+  ).toBe(1);
+
+  expect(appendFile).toHaveBeenCalledWith(
+    "/state/termwire/reap.log",
+    "2026-09-28T10:00:00.000Z session=repo-dev error=process scanning is not supported on plan9\n",
+  );
+  expect(writeError).toHaveBeenCalledWith("termwire: process scanning is not supported on plan9\n");
 });

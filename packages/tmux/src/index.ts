@@ -1,6 +1,8 @@
 export type { WindowPaneIds } from "./command.js";
 export type { CreateTmuxOptions } from "./create-tmux.js";
 export { createTmux } from "./create-tmux.js";
+export type { HookEntry, SetHookOptions, ShowHooksOptions, UnsetHookOptions } from "./hook.js";
+export { parseHooks, setHook, showHooks, unsetHook } from "./hook.js";
 export type { RespawnPaneOptions, SplitPaneOptions } from "./pane.js";
 export { respawnPane } from "./pane.js";
 export type { Exec, ExecOptions, ExecResult } from "./process.js";
