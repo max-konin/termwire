@@ -1,5 +1,5 @@
 import { expect, mock, test } from "bun:test";
-import { findGitRoot, type GitExec, parseWorktreeList, prepareWorktree } from "./worktree";
+import { findGitRoot, type GitExec, parseWorktreeList, prepareWorktree } from "./worktree.js";
 
 test("finds a Git root with exact argv", async () => {
   const exec = mock<GitExec>().mockResolvedValue({

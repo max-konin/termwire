@@ -1,9 +1,9 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createNvim } from "@termwire/nvim";
 import { createTmux } from "@termwire/tmux";
-import { createOpenFileHandler } from "../open";
-import { createTermwireMcpServer } from "../server";
+import { createOpenFileHandler } from "../open.js";
+import { createTermwireMcpServer } from "../server.js";
 
 const openFile = createOpenFileHandler({
   getEnv: () => process.env,

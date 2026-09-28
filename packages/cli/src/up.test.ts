@@ -1,9 +1,9 @@
 import { expect, mock, test } from "bun:test";
 import type { createTmux } from "@termwire/tmux";
-import type { LayoutConfig } from "./config-schema";
-import type { LoadedConfig } from "./config-types";
-import { createLayout } from "./layout";
-import { up as runUp, type UpDependencies } from "./up";
+import type { LayoutConfig } from "./config-schema.js";
+import type { LoadedConfig } from "./config-types.js";
+import { createLayout } from "./layout.js";
+import { up as runUp, type UpDependencies } from "./up.js";
 
 const defaultLayout: LayoutConfig = {
   windows: [

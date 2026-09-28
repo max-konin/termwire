@@ -1,4 +1,4 @@
-import { assertNotEmpty, ValidationError } from "./validation";
+import { assertNotEmpty, ValidationError } from "./validation.js";
 
 export interface WindowPaneIds {
   windowId: string;

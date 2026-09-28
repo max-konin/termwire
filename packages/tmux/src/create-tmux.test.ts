@@ -6,7 +6,7 @@ import {
   killSession,
   respawnPane,
   setEnvironment,
-} from "./index";
+} from "./index.js";
 
 const result = (exitCode: number): ExecResult => ({ exitCode, stdout: "", stderr: "" });
 

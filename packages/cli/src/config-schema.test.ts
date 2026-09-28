@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { configV1Schema } from "./config-schema";
+import { configV1Schema } from "./config-schema.js";
 
 test.each([
   ["version-only config", { version: 1 }],

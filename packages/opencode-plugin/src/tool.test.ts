@@ -1,5 +1,5 @@
 import { expect, mock, test } from "bun:test";
-import { createTermwireOpenTool } from "./tool";
+import { createTermwireOpenTool } from "./tool.js";
 
 function safeParseSuccess(schema: unknown, value: unknown): boolean {
   return (schema as { safeParse(value: unknown): { success: boolean } }).safeParse(value).success;

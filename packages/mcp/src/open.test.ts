@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createOpenFileHandler, type NvimClient, type TmuxClient } from "./open";
+import { createOpenFileHandler, type NvimClient, type TmuxClient } from "./open.js";
 
 const idleNvim: NvimClient = {
   async isRunning() {

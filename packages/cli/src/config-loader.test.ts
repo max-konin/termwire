@@ -1,5 +1,5 @@
 import { expect, mock, test } from "bun:test";
-import { createConfigLoader } from "./config-loader";
+import { createConfigLoader } from "./config-loader.js";
 
 test("loads global config from XDG_CONFIG_HOME using UTF-8", async () => {
   const readFile =

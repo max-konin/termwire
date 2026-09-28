@@ -1,5 +1,5 @@
-import { CommandError, type Exec, execute } from "./process";
-import { assertNotEmpty, ValidationError } from "./validation";
+import { CommandError, type Exec, execute } from "./process.js";
+import { assertNotEmpty, ValidationError } from "./validation.js";
 
 export async function openFile(
   exec: Exec,

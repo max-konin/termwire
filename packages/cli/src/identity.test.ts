@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createIdentity, sanitizeComponent } from "./identity";
+import { createIdentity, sanitizeComponent } from "./identity.js";
 
 test("sanitizes components without changing case", () => {
   expect(sanitizeComponent(" My Project/DEV ", "name")).toBe("My-Project-DEV");

@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
-import { CommandError, type Exec, type ExecResult } from "./process";
-import { hasSession, killSession, newSession, setEnvironment, setSessionTitle } from "./session";
-import { ValidationError } from "./validation";
+import { CommandError, type Exec, type ExecResult } from "./process.js";
+import { hasSession, killSession, newSession, setEnvironment, setSessionTitle } from "./session.js";
+import { ValidationError } from "./validation.js";
 
 const result = (exitCode: number, stdout = "", stderr = ""): ExecResult => ({
   exitCode,

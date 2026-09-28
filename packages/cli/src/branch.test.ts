@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
-import { prepareBranch } from "./branch";
-import type { GitExec } from "./worktree";
+import { prepareBranch } from "./branch.js";
+import type { GitExec } from "./worktree.js";
 
 test("switches to an existing local branch", async () => {
   const exec = mock<GitExec>()

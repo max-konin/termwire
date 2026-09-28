@@ -1,15 +1,15 @@
-import { attach } from "./client";
-import { respawnPane, selectPane, sendKeys, splitPane } from "./pane";
-import { bunExec, type Exec } from "./process";
-import { hasSession, killSession, newSession, setEnvironment, setSessionTitle } from "./session";
-import { newWindow, selectLayout, selectWindow } from "./window";
+import { attach } from "./client.js";
+import { respawnPane, selectPane, sendKeys, splitPane } from "./pane.js";
+import { type Exec, spawnExec } from "./process.js";
+import { hasSession, killSession, newSession, setEnvironment, setSessionTitle } from "./session.js";
+import { newWindow, selectLayout, selectWindow } from "./window.js";
 
 export interface CreateTmuxOptions {
   exec?: Exec;
   env?: Record<string, string | undefined>;
 }
 
-export function createTmux({ exec = bunExec, env = process.env }: CreateTmuxOptions = {}) {
+export function createTmux({ exec = spawnExec, env = process.env }: CreateTmuxOptions = {}) {
   return {
     hasSession: (session: string) => hasSession(exec, session),
     newSession: (options: Parameters<typeof newSession>[1]) => newSession(exec, options),

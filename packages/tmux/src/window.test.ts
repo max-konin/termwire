@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { Exec, ExecResult } from "./process";
-import { ValidationError } from "./validation";
-import { newWindow, selectLayout, selectWindow } from "./window";
+import type { Exec, ExecResult } from "./process.js";
+import { ValidationError } from "./validation.js";
+import { newWindow, selectLayout, selectWindow } from "./window.js";
 
 const result = (exitCode: number, stdout = "", stderr = ""): ExecResult => ({
   exitCode,

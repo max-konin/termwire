@@ -1,5 +1,5 @@
-import { type Exec, execute } from "./process";
-import { assertNotEmpty } from "./validation";
+import { type Exec, execute } from "./process.js";
+import { assertNotEmpty } from "./validation.js";
 
 export async function isRunning(exec: Exec, socket: string): Promise<boolean> {
   assertNotEmpty("socket", socket);

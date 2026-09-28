@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createOpenFileHandler, type NvimClient, type TmuxClient } from "./open";
+import { createOpenFileHandler, type NvimClient, type TmuxClient } from "./open.js";
 
 const request = {
   directory: "/workspace/project",
@@ -30,7 +30,7 @@ test.each([
   [{}],
 ])("rejects an incomplete workspace environment", async (env) => {
   const openFile = createOpenFileHandler({ getEnv: () => env, nvim: idleNvim, tmux: idleTmux });
-  await expect(openFile(request)).rejects.toThrow("not inside an termwire workspace");
+  await expect(openFile(request)).rejects.toThrow("not inside a termwire workspace");
 });
 
 test("resolves a relative path from the OpenCode directory", async () => {

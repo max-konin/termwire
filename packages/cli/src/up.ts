@@ -1,8 +1,8 @@
 import type { createTmux } from "@termwire/tmux";
-import type { LayoutConfig } from "./config-schema";
-import type { LoadedConfig } from "./config-types";
-import { createIdentity } from "./identity";
-import type { createLayout } from "./layout";
+import type { LayoutConfig } from "./config-schema.js";
+import type { LoadedConfig } from "./config-types.js";
+import { createIdentity } from "./identity.js";
+import type { createLayout } from "./layout.js";
 
 export interface UpRequest {
   name: string;

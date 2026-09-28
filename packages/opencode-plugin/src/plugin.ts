@@ -1,6 +1,6 @@
 import type { Plugin } from "@opencode-ai/plugin";
-import type { OpenFileHandler } from "./open";
-import { createTermwireOpenTool } from "./tool";
+import type { OpenFileHandler } from "./open.js";
+import { createTermwireOpenTool } from "./tool.js";
 
 export function createTermwirePlugin(openFile: OpenFileHandler): Plugin {
   return async () => ({

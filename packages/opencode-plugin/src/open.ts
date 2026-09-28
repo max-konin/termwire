@@ -40,7 +40,7 @@ export function createOpenFileHandler({
     const absolutePath = resolve(directory, path);
 
     if (!socket || !editorPane) {
-      throw new Error("not inside an termwire workspace");
+      throw new Error("not inside a termwire workspace");
     }
 
     if (!(await nvim.isRunning(socket))) {

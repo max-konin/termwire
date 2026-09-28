@@ -1,5 +1,5 @@
 import { type ToolDefinition, tool } from "@opencode-ai/plugin";
-import type { OpenFileHandler } from "./open";
+import type { OpenFileHandler } from "./open.js";
 
 export function createTermwireOpenTool(openFile: OpenFileHandler): ToolDefinition {
   return tool({

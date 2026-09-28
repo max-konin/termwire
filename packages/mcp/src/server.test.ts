@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import packageJson from "../package.json";
-import { createTermwireMcpServer } from "./server";
+import { createTermwireMcpServer } from "./server.js";
 
 test("advertises the package release in the public MCP initialization response", async () => {
   const server = createTermwireMcpServer(async () => ({ path: "/tmp/file" }));

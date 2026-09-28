@@ -1,7 +1,7 @@
 import { createNvim } from "@termwire/nvim";
 import { createTmux } from "@termwire/tmux";
-import { createOpenFileHandler } from "./open";
-import { createTermwirePlugin } from "./plugin";
+import { createOpenFileHandler } from "./open.js";
+import { createTermwirePlugin } from "./plugin.js";
 
 const openFile = createOpenFileHandler({
   getEnv: () => process.env,

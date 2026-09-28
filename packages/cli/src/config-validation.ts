@@ -5,8 +5,8 @@ import {
   type LayoutConfig,
   type PaneConfig,
   type WindowConfig,
-} from "./config-schema";
-import type { LoadedConfig } from "./config-types";
+} from "./config-schema.js";
+import type { LoadedConfig } from "./config-types.js";
 
 const defaultLayout: LayoutConfig = {
   windows: [

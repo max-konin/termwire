@@ -1,5 +1,5 @@
-import { CommandError, type Exec, execute } from "./process";
-import { assertNotEmpty } from "./validation";
+import { CommandError, type Exec, execute } from "./process.js";
+import { assertNotEmpty } from "./validation.js";
 
 export async function attach(
   exec: Exec,

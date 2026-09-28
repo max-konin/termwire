@@ -1,7 +1,7 @@
 import { expect, mock, test } from "bun:test";
 import type { createTmux } from "@termwire/tmux";
-import type { LayoutConfig } from "./config-schema";
-import { createLayout } from "./layout";
+import type { LayoutConfig } from "./config-schema.js";
+import { createLayout } from "./layout.js";
 
 test("creates later panes and windows in declaration order while mapping the initial pane", async () => {
   const splitPane = mock<ReturnType<typeof createTmux>["splitPane"]>().mockResolvedValue("%2");
