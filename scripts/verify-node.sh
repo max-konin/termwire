@@ -21,6 +21,15 @@ echo "node $(node --version)"
 echo "--- cli: help"
 node "$cli" --help | grep -q "open \[options\] <target>"
 
+echo "--- cli: version"
+# Guards the runtime package.json lookup, which resolves differently from dist.
+expected="$(node -p "require('$root/packages/cli/package.json').version")"
+actual="$(node "$cli" --version)"
+if [ "$actual" != "$expected" ]; then
+  echo "unexpected CLI version: $actual (expected $expected)" >&2
+  exit 1
+fi
+
 echo "--- cli: loads the nvim and tmux adapters"
 actual="$(env -u TERMWIRE_SOCKET node "$cli" open README.md 2>&1 || true)"
 case "$actual" in

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import {
   appendFile as appendFileToDisk,
   mkdir as mkdirDirectory,
@@ -31,6 +32,16 @@ import {
 import { ensureReapHook, reapCommandName } from "./reap-hook.js";
 import { type UpRequest, up } from "./up.js";
 import { findGitRoot, type GitExec, prepareWorktree } from "./worktree.js";
+
+/**
+ * Read at runtime rather than baked in at build time, the way `@termwire/mcp`
+ * reports its own version. `dist/program.js` and `src/program.ts` both sit one
+ * level below the package root, so the same specifier resolves in a published
+ * install and from a checkout.
+ */
+const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+  version: string;
+};
 
 export interface ProgramDependencies {
   up: (request: UpRequest) => Promise<void>;
@@ -275,6 +286,7 @@ export function createProgram(dependencies: ProgramDependencies): Command {
   });
   program.exitOverride();
   program.showHelpAfterError();
+  program.version(manifest.version, "-V, --version", "print the installed termwire version");
 
   program
     .command("up <name>")

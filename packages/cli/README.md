@@ -8,6 +8,7 @@ Requires Node >=22.12, tmux >=3.2, and Neovim >=0.9. It runs on Bun as well.
 ```bash
 npm install -g @termwire/cli
 termwire --help
+termwire --version
 termwire up dev
 termwire open src/app.ts:42
 ```

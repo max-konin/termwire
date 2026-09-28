@@ -1,6 +1,7 @@
 import { expect, mock, test } from "bun:test";
 import type { createNvim as createNvimAdapter } from "@termwire/nvim";
 import type { createTmux as createTmuxAdapter } from "@termwire/tmux";
+import packageJson from "../package.json";
 import type { Exec } from "./exec.js";
 import type { OpenRequest, OpenResult } from "./open.js";
 import {
@@ -63,6 +64,38 @@ test("normalizes supported up worktree forms", async () => {
     expect(up).toHaveBeenCalledWith(request);
     expect(writeError).not.toHaveBeenCalled();
   }
+});
+
+test.each([["--version"], ["-V"]])("prints the package version for %s", async (flag) => {
+  const writeOutput = mock<(message: string) => void>();
+  const writeError = mock<(message: string) => void>();
+
+  expect(
+    await run([flag], {
+      up: mock<(request: UpRequest) => Promise<void>>().mockResolvedValue(),
+      open: createOpenStub(),
+      reap: createReapStub(),
+      writeError,
+      writeOutput,
+    }),
+  ).toBe(0);
+
+  expect(writeOutput).toHaveBeenCalledWith(`${packageJson.version}\n`);
+  expect(writeError).not.toHaveBeenCalled();
+});
+
+test("documents the version flag in help", async () => {
+  const writeOutput = mock<(message: string) => void>();
+
+  await run(["--help"], {
+    up: mock<(request: UpRequest) => Promise<void>>().mockResolvedValue(),
+    open: createOpenStub(),
+    reap: createReapStub(),
+    writeError: mock<(message: string) => void>(),
+    writeOutput,
+  });
+
+  expect(writeOutput.mock.calls.map(([message]) => message).join("")).toContain("-V, --version");
 });
 
 test("prints root and up help to injected stdout", async () => {
