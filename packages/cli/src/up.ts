@@ -23,6 +23,8 @@ export interface UpDependencies {
   mkdir: (path: string) => Promise<void>;
   removeFile: (path: string) => Promise<void>;
   tmux: ReturnType<typeof createTmux>;
+  /** Best effort: a workspace is worth having even without the cleanup hook. */
+  installReapHook: () => Promise<void>;
   loadGlobalConfig: () => Promise<LoadedConfig | undefined>;
   loadProjectConfig: (gitRoot: string) => Promise<LoadedConfig | undefined>;
   resolveLayout: (
@@ -45,6 +47,7 @@ export async function up(request: UpRequest, dependencies: UpDependencies): Prom
   const identity = createIdentity({ cwd, gitRoot, name: request.name });
 
   if (await dependencies.tmux.hasSession(identity.session)) {
+    await bestEffortInstallReapHook(dependencies);
     await dependencies.tmux.attach(identity.session);
     return;
   }
@@ -60,6 +63,7 @@ export async function up(request: UpRequest, dependencies: UpDependencies): Prom
     cwd: workspace,
   });
   try {
+    await bestEffortInstallReapHook(dependencies);
     await dependencies.tmux.setSessionTitle(identity.session);
     await dependencies.createLayout({
       tmux: dependencies.tmux,
@@ -113,6 +117,15 @@ async function resolveWorkspace(
     name,
     branch: request.branch ?? name,
   });
+}
+
+async function bestEffortInstallReapHook(dependencies: UpDependencies): Promise<void> {
+  try {
+    await dependencies.installReapHook();
+  } catch {
+    // Never trade the workspace for the cleanup hook: an implementation that
+    // reports failures does so itself, before throwing.
+  }
 }
 
 async function bestEffortKillSession(

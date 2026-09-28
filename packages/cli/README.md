@@ -35,6 +35,55 @@ Git branch names and replaced only in filesystem-safe worktree directory names. 
 is changed only when `--branch` is present. Existing tmux sessions attach without Git mutations or
 rereading/reconciling configuration.
 
+## Session cleanup
+
+`up` installs one global tmux hook, `session-closed`, that runs a hidden
+`termwire _reap <session>` for the session that just closed. Without it,
+processes started in a workspace outlive `tmux kill-session`: tmux only sends
+`SIGHUP` to the foreground process group of each pane, so a background agent job
+detached from the terminal is adopted by `init` and keeps running for weeks.
+
+The reap finds every process of the current user whose environment still carries
+`TERMWIRE_SESSION=<session>` (from `ps -E` on macOS, from `/proc` on Linux),
+sends `SIGTERM`, waits two seconds, confirms the survivors still carry the label,
+then escalates them to `SIGKILL`. It signals that list of pids and nothing else,
+never a pattern match. The tmux server and everything it descends from are never
+signalled, even when the server's own environment carries the label.
+
+Each run appends one line to `$XDG_STATE_HOME/termwire/reap.log`, defaulting to
+`~/.local/state/termwire/reap.log`, because a tmux hook's output is not shown
+anywhere. The reap inherits the tmux server's environment, so `XDG_STATE_HOME`
+is read as the server saw it when it started, not as your current shell exports
+it. The log is never rotated; it gains one line per session close.
+
+Installing the hook is idempotent: a repeated `up` updates our entry when the
+interpreter or script path changed, drops duplicates of ours, and leaves any
+`session-closed` hook you configured yourself in place. When the tmux server
+refuses the hook, `up` warns and still brings the workspace up.
+
+Two things escape the reap. A process that clears or rewrites its own
+environment no longer carries the label, and on macOS the kernel hides the
+environment of Apple's own signed binaries, so a bare `sleep` started in a pane
+is invisible to `ps -E` while a `node` or `pnpm` process is not. Everything that
+does carry the label is killed, including processes you started in the session
+yourself; for a session you are closing, that is the point.
+
+One false positive is possible on macOS, where `ps -E` flattens the environment
+into a single line: a process holding `TERMWIRE_SESSION=<session>` inside the
+*value* of another variable, a captured command line for instance, is
+indistinguishable from one that carries the label itself. Linux reads `/proc`
+and matches exactly.
+
+The hook records the absolute path of the interpreter and script that installed
+it, and the next `up` rewrites it when either moved. A path that disappears
+without a further `up`, after `npx` prunes its cache for example, leaves a hook
+that silently does nothing. Remove it by index:
+
+```bash
+tmux show-hooks -g | grep TERMWIRE_REAP_HOOK   # e.g. session-closed[1]
+tmux set-hook -gu 'session-closed[1]'
+```
+
 ## `open`
 
 ```bash
@@ -339,6 +388,8 @@ while preserving the original failure.
 - The default layout does not start OpenCode automatically. Users may start it manually in an
   ordinary shell pane, or configure `["opencode"]` as a pane command. They may also reshape the
   workspace with tmux after creation.
+- Closing a workspace session kills the processes it started, through the global
+  tmux `session-closed` hook that `up` installs.
 - `open <target>` resolves the path, checks that Neovim answers on the socket,
   opens the file, then focuses the editor pane when one is known.
 - The CLI does not need to be in `PATH` for the MCP server or the OpenCode
