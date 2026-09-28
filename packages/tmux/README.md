@@ -26,6 +26,7 @@ tmux binary.
   `setEnvironment`, `attach`.
 - Windows: `newWindow`, `selectWindow`, `selectLayout`.
 - Panes: `splitPane`, `respawnPane`, `selectPane`, `sendKeys`.
+- Hooks: `showHooks`, `setHook`, `unsetHook`.
 
 `attach` uses `attach-session` outside tmux and `switch-client` when `TMUX` is
 set, so attaching works the same from a plain terminal and from inside another
@@ -34,6 +35,10 @@ session.
 `newSession` and `newWindow` return the created window and pane ids. Termwire
 uses those ids to place panes and to record the editor pane in
 `TERMWIRE_EDITOR_PANE`.
+
+`showHooks` returns the parsed entries, including the array index tmux stores
+each hook under, which is what a caller needs to replace or remove one in place.
+Deciding which hook belongs to whom is not this package's business.
 
 ## Boundary
 

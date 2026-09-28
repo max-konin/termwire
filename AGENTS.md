@@ -46,6 +46,14 @@
   configure only the windows and panes created for a new session.
 - Workspace identity is stateless and environment-based:
   `TERMWIRE_SESSION`, `TERMWIRE_SOCKET`, and `TERMWIRE_EDITOR_PANE`.
+- `up` installs one global tmux `session-closed` hook that runs the hidden
+  `termwire _reap <session>` subcommand, so closing a session kills every process
+  still labeled with its `TERMWIRE_SESSION`. The hook must stay a foreground
+  `run-shell` whose command ends in `&`: `run-shell -b` is skipped when the last
+  session closes and the server shuts down. The session name must stay unquoted as
+  `#{q:hook_session_name}`; the hook is global, so it fires for session names
+  Termwire never sanitized, and `#{q:}` is what escapes them for `sh`. Reap logs go
+  to `$XDG_STATE_HOME/termwire/reap.log`, as the tmux server's environment sees it.
 - Keep adapters testable through injectable `exec`; tests must not require real tmux or Neovim
   binaries.
 - Neovim integration must use built-in remote RPC (`nvim --server <socket> --remote*`); do not add

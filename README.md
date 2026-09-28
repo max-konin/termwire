@@ -49,6 +49,13 @@ This is the whole of Termwire's state. Nothing is written to disk, so there is
 no state file to go stale and no cleanup step beyond `tmux kill-session` and
 `git worktree remove`.
 
+`up` also installs one global tmux `session-closed` hook, so closing a session
+kills everything started in it, including background agent jobs that outlive
+`kill-session` on their own. Installing it again never duplicates it and never
+removes a `session-closed` hook of your own. See
+[the CLI README](packages/cli/README.md#session-cleanup) for what is killed and
+what escapes.
+
 Termwire does not start an agent for you. Start one in the `shell` window, or
 declare it as a pane command in a layout file.
 
