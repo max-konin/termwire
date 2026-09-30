@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { attach } from "./client.js";
-import { createTmux, type Exec, type ExecOptions, type ExecResult } from "./index.js";
+import { createTmux } from "./create-tmux.js";
+import type { Exec, ExecOptions, ExecResult } from "./process.js";
 
 const result = (exitCode: number, stdout = "", stderr = ""): ExecResult => ({
   exitCode,
