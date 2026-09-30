@@ -1,12 +1,9 @@
 import { describe, expect, mock, test } from "bun:test";
-import {
-  createTmux,
-  type Exec,
-  type ExecResult,
-  killSession,
-  respawnPane,
-  setEnvironment,
-} from "./index.js";
+import { createTmux } from "./create-tmux.js";
+// Internals, reached directly: the package's public entry is `createTmux`.
+import { respawnPane } from "./pane.js";
+import type { Exec, ExecResult } from "./process.js";
+import { killSession, setEnvironment } from "./session.js";
 
 const result = (exitCode: number): ExecResult => ({ exitCode, stdout: "", stderr: "" });
 

@@ -36,6 +36,20 @@
 - `@termwire/opencode-plugin` owns explicit `termwire_open({ path, line? })` execution and may
   depend on the tmux and Neovim adapters; it does not invoke a CLI executable.
 
+## Public surface
+
+- A package's `src/index.ts` exports only what something outside that package actually imports.
+  Adding a module is not a reason to re-export it; a barrel of internals is a promise nobody
+  asked for, and it blocks refactoring because every rename becomes a breaking change. Before
+  adding an export, name the consumer.
+- `@termwire/cli` is a binary, so its entry exports `run`, `createNodeRuntime`, and `CliRuntime`
+  — what `bin/termwire.ts` needs to compose the program. `@termwire/tmux` and `@termwire/nvim`
+  are libraries: their entry is the `createTmux` / `createNvim` factory plus the types in its
+  signature and the error classes a caller catches, never the per-command functions those
+  factories already expose.
+- Tests reach internals through relative module paths, never through the package entry. A test
+  that needs a new export is a test importing from the wrong place.
+
 ## Current scope and gotchas
 
 - Treat package READMEs, `PDR.md`, and `ROADMAP.md` as design intent, not implemented behavior.
@@ -56,6 +70,13 @@
   to `$XDG_STATE_HOME/termwire/reap.log`, as the tmux server's environment sees it.
 - Keep adapters testable through injectable `exec`; tests must not require real tmux or Neovim
   binaries.
+- `packages/cli/src/runtime.ts` is where the CLI binds the filesystem, child processes, and
+  process state into one `CliRuntime`. Commands take it and destructure what they use in the
+  parameter list. Production code carries no `dependencies.x ?? realThing` defaults: `run`
+  receives a runtime, `bin/termwire.ts` builds the real one, and tests build a fake one through a
+  single helper. `node:path` is pure string work and stays allowed anywhere; two files still reach
+  past the seam and are worth folding in when touched — `worktree.ts` calls `realpath` and
+  `program.ts` reads its own `package.json` for `--version`.
 - Neovim integration must use built-in remote RPC (`nvim --server <socket> --remote*`); do not add
   a Neovim plugin or `nvr`.
 - Biome uses 2 spaces, double quotes, semicolons, trailing commas, and a 100-column width.
