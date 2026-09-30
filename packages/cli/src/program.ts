@@ -1,37 +1,23 @@
-import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
-import {
-  appendFile as appendFileToDisk,
-  mkdir as mkdirDirectory,
-  readdir as readDirectory,
-  readFile as readFileFromDisk,
-  stat,
-  unlink as unlinkFile,
-} from "node:fs/promises";
-import { homedir as getHomeDirectory } from "node:os";
 import { dirname, resolve as resolvePath } from "node:path";
-import { createNvim } from "@termwire/nvim";
-import { createTmux } from "@termwire/tmux";
 import { Command, CommanderError } from "commander";
 import { prepareBranch } from "./branch.js";
 import { createConfigLoader } from "./config-loader.js";
 import { resolveLayout } from "./config-validation.js";
-import { type Exec, spawnCapture } from "./exec.js";
 import { createLayout } from "./layout.js";
 import { type OpenRequest, type OpenResult, open } from "./open.js";
 import { createProcessScanner } from "./process-scan.js";
 import {
   formatReapFailure,
   formatReapReport,
-  type KillOutcome,
   parseTmuxServerPid,
-  type ReapSignal,
   reapLogPath,
   reapSession,
 } from "./reap.js";
 import { ensureReapHook, reapCommandName } from "./reap-hook.js";
+import type { CliRuntime, RuntimeFileSystem } from "./runtime.js";
 import { type UpRequest, up } from "./up.js";
-import { findGitRoot, type GitExec, prepareWorktree } from "./worktree.js";
+import { findGitRoot, prepareWorktree } from "./worktree.js";
 
 /**
  * Read at runtime rather than baked in at build time, the way `@termwire/mcp`
@@ -51,76 +37,6 @@ export interface ProgramDependencies {
   writeOutput: (message: string) => void;
 }
 
-export interface RuntimeDependencies {
-  createTmux: () => ReturnType<typeof createTmux>;
-  cwd: () => string;
-  env: Record<string, string | undefined>;
-  homedir: () => string;
-  execPath: string;
-  scriptPath: string | undefined;
-  warn: (message: string) => void;
-  readFile: (path: string, encoding: "utf8") => Promise<string>;
-  gitExec: GitExec;
-  mkdir: (path: string, options: { recursive: true }) => Promise<unknown>;
-  pathExists: (path: string) => Promise<boolean>;
-  unlink: (path: string) => Promise<void>;
-}
-
-export interface RuntimeReapDependencies {
-  env: Record<string, string | undefined>;
-  homedir: () => string;
-  platform: string;
-  uid: number;
-  pid: number;
-  exec: Exec;
-  readdir: (path: string) => Promise<string[]>;
-  readFile: (path: string) => Promise<string>;
-  kill: (pid: number, signal: ReapSignal) => KillOutcome;
-  wait: (milliseconds: number) => Promise<void>;
-  appendFile: (path: string, contents: string) => Promise<void>;
-  mkdir: (path: string, options: { recursive: true }) => Promise<unknown>;
-  now: () => Date;
-}
-
-export interface RuntimeOpenDependencies {
-  createNvim: () => ReturnType<typeof createNvim>;
-  createTmux: () => ReturnType<typeof createTmux>;
-  cwd: () => string;
-  env: Record<string, string | undefined>;
-}
-
-export const executeGit: GitExec = async (argv, options) => {
-  const [command, ...args] = argv;
-
-  if (command === undefined) {
-    throw new Error("git execution failed: empty command");
-  }
-
-  return await new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd: options?.cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
-      stdout += chunk;
-    });
-    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-
-    child.once("error", (cause) => {
-      reject(new Error(`git execution failed: ${argv.join(" ")}`, { cause }));
-    });
-    child.once("close", (code) => {
-      resolve({ exitCode: code ?? 1, stdout, stderr });
-    });
-  });
-};
-
 export async function removeStaleSocket(
   path: string,
   unlink: (path: string) => Promise<void>,
@@ -134,48 +50,32 @@ export async function removeStaleSocket(
   }
 }
 
-export function createRuntimeUp(dependencies: Partial<RuntimeDependencies> = {}) {
-  const tmux = (dependencies.createTmux ?? (() => createTmux()))();
-  const cwd = dependencies.cwd ?? (() => process.cwd());
-  const env = dependencies.env ?? process.env;
-  const homedir = dependencies.homedir ?? getHomeDirectory;
-  const readFile =
-    dependencies.readFile ?? ((path: string, encoding: "utf8") => readFileFromDisk(path, encoding));
-  const gitExec = dependencies.gitExec ?? executeGit;
-  const mkdir = dependencies.mkdir ?? mkdirDirectory;
-  const pathExists =
-    dependencies.pathExists ??
-    (async (path: string) => {
-      try {
-        await stat(path);
-        return true;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-        throw error;
-      }
-    });
-  const unlink = dependencies.unlink ?? unlinkFile;
-  const execPath = dependencies.execPath ?? process.execPath;
-  const scriptPath = "scriptPath" in dependencies ? dependencies.scriptPath : process.argv[1];
-  const warn = dependencies.warn ?? ((message: string) => process.stderr.write(message));
-  const loader = createConfigLoader({ env, homedir, exists: pathExists, readFile });
-  const loadGlobalConfig = loader.loadGlobal;
-  const loadProjectConfig = loader.loadProject;
+export function createUp({
+  fs,
+  host,
+  git,
+  tmux,
+}: CliRuntime): (request: UpRequest) => Promise<void> {
+  const loader = createConfigLoader({
+    env: host.env,
+    homedir: host.homedir,
+    exists: fs.exists,
+    readFile: (path) => fs.readFile(path),
+  });
 
-  return (request: UpRequest) =>
+  return (request) =>
     up(request, {
-      cwd,
-      findGitRoot: (directory) => findGitRoot(gitExec, directory),
-      prepareBranch: ({ cwd: directory, name }) => prepareBranch(gitExec, directory, name),
-      prepareWorktree: (options) => prepareWorktree({ ...options, exec: gitExec, pathExists }),
-      mkdir: async (path) => {
-        await mkdir(path, { recursive: true });
-      },
-      removeFile: (path) => removeStaleSocket(path, unlink),
+      cwd: host.cwd,
+      findGitRoot: (directory) => findGitRoot(git, directory),
+      prepareBranch: ({ cwd: directory, name }) => prepareBranch(git, directory, name),
+      prepareWorktree: (options) =>
+        prepareWorktree({ ...options, exec: git, pathExists: fs.exists }),
+      mkdir: fs.mkdir,
+      removeFile: (path) => removeStaleSocket(path, fs.unlink),
       tmux,
-      installReapHook: () => installReapHook({ tmux, execPath, scriptPath, warn }),
-      loadGlobalConfig,
-      loadProjectConfig,
+      installReapHook: () => installReapHook({ host, tmux }),
+      loadGlobalConfig: loader.loadGlobal,
+      loadProjectConfig: loader.loadProject,
       resolveLayout,
       createLayout,
     });
@@ -185,98 +85,83 @@ export function createRuntimeUp(dependencies: Partial<RuntimeDependencies> = {})
  * Installing the cleanup hook is best effort: a workspace is still usable when the
  * tmux server refuses the hook, so `up` only warns.
  */
-async function installReapHook(options: {
-  tmux: ReturnType<typeof createTmux>;
-  execPath: string;
-  scriptPath: string | undefined;
-  warn: (message: string) => void;
-}): Promise<void> {
+async function installReapHook({ host, tmux }: Pick<CliRuntime, "host" | "tmux">): Promise<void> {
   try {
-    if (options.scriptPath === undefined) {
-      throw new Error("the termwire script path is unknown");
-    }
     await ensureReapHook({
-      tmux: options.tmux,
-      execPath: options.execPath,
-      scriptPath: resolvePath(options.scriptPath),
+      tmux,
+      execPath: host.execPath,
+      scriptPath: resolveScriptPath(host.scriptPath),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    options.warn(`termwire: session cleanup hook not installed: ${message}\n`);
+    host.writeError(`termwire: session cleanup hook not installed: ${message}\n`);
   }
 }
 
-export function killProcess(pid: number, signal: ReapSignal): KillOutcome {
-  try {
-    process.kill(pid, signal);
-    return "signalled";
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ESRCH") return "gone";
-    if (code === "EPERM") return "denied";
-    throw error;
+function resolveScriptPath(scriptPath: string | undefined): string {
+  if (scriptPath === undefined) {
+    throw new Error("the termwire script path is unknown");
   }
+  return resolvePath(scriptPath);
 }
 
-export function createRuntimeReap(dependencies: Partial<RuntimeReapDependencies> = {}) {
-  const env = dependencies.env ?? process.env;
-  const homedir = dependencies.homedir ?? getHomeDirectory;
-  const platform = dependencies.platform ?? process.platform;
-  const uid = dependencies.uid ?? process.getuid?.() ?? 0;
-  const pid = dependencies.pid ?? process.pid;
-  const exec = dependencies.exec ?? spawnCapture;
-  const readdir = dependencies.readdir ?? ((path: string) => readDirectory(path));
-  const readFile = dependencies.readFile ?? ((path: string) => readFileFromDisk(path, "utf8"));
-  const kill = dependencies.kill ?? killProcess;
-  const wait =
-    dependencies.wait ??
-    ((milliseconds: number) =>
-      new Promise<void>((resolveWait) => {
-        setTimeout(resolveWait, milliseconds);
-      }));
-  const appendFile =
-    dependencies.appendFile ??
-    ((path: string, contents: string) => appendFileToDisk(path, contents));
-  const mkdir = dependencies.mkdir ?? mkdirDirectory;
-  const now = dependencies.now ?? (() => new Date());
+export function createOpen({
+  host,
+  nvim,
+  tmux,
+}: CliRuntime): (request: OpenRequest) => Promise<OpenResult> {
+  return (request) => open(request, { cwd: host.cwd, env: host.env, nvim, tmux });
+}
 
-  const record = async (line: string) => {
-    const path = reapLogPath({ env, homedir });
-    try {
-      await mkdir(dirname(path), { recursive: true });
-      await appendFile(path, line);
-    } catch {
-      // A missing log must not hide the reap itself.
-    }
-  };
+export function createReap({ fs, host, exec }: CliRuntime): (session: string) => Promise<void> {
+  const record = (line: string) =>
+    appendQuietly(reapLogPath({ env: host.env, homedir: host.homedir }), line, fs);
 
-  return async (session: string) => {
+  return async (session) => {
     try {
-      const serverPid = parseTmuxServerPid(env.TMUX);
+      const serverPid = parseTmuxServerPid(host.env.TMUX);
       const report = await reapSession(session, {
-        scan: createProcessScanner({ platform, exec, uid, readdir, readFile }),
-        kill,
-        wait,
-        selfPid: pid,
+        scan: createProcessScanner({
+          platform: host.platform,
+          exec,
+          uid: host.uid,
+          readdir: fs.readdir,
+          readFile: fs.readFile,
+        }),
+        kill: host.kill,
+        wait: host.wait,
+        selfPid: host.pid,
         // The reap inherits the tmux server's environment, TMUX included, which is
         // the only way back to the server it must not kill.
         ...(serverPid === undefined ? {} : { serverPid }),
       });
-      await record(formatReapReport(report, now().toISOString()));
+      await record(formatReapReport(report, host.now().toISOString()));
     } catch (error) {
-      await record(formatReapFailure(session, error, now().toISOString()));
+      await record(formatReapFailure(session, error, host.now().toISOString()));
       throw error;
     }
   };
 }
 
-export function createRuntimeOpen(dependencies: Partial<RuntimeOpenDependencies> = {}) {
-  const nvim = (dependencies.createNvim ?? (() => createNvim()))();
-  const tmux = (dependencies.createTmux ?? (() => createTmux()))();
-  const cwd = dependencies.cwd ?? (() => process.cwd());
-  const env = dependencies.env ?? process.env;
+/** A log that cannot be written must not hide what the reap did. */
+async function appendQuietly(path: string, line: string, fs: RuntimeFileSystem): Promise<void> {
+  try {
+    await fs.mkdir(dirname(path));
+    await fs.appendFile(path, line);
+  } catch {
+    // Nothing left to report it to.
+  }
+}
 
-  return (request: OpenRequest) => open(request, { cwd, env, nvim, tmux });
+/** Binds every command to one runtime. The only caller that needs the real one. */
+export function createCommands(runtime: CliRuntime): ProgramDependencies {
+  return {
+    up: createUp(runtime),
+    open: createOpen(runtime),
+    reap: createReap(runtime),
+    writeError: runtime.host.writeError,
+    writeOutput: runtime.host.writeOutput,
+  };
 }
 
 export function createProgram(dependencies: ProgramDependencies): Command {
@@ -353,19 +238,22 @@ Target syntax:
   return program;
 }
 
-export async function run(
+/** The composition root's entry: one runtime in, an exit code out. */
+export async function run(argv: readonly string[], runtime: CliRuntime): Promise<number> {
+  if (runtime === undefined) {
+    // Reachable from JavaScript, where the required parameter is only a suggestion.
+    throw new Error("run needs a runtime: pass createNodeRuntime()");
+  }
+  return await runCommands(argv, createCommands(runtime));
+}
+
+/** Parsing and exit-code mapping, indifferent to how the commands were built. */
+export async function runCommands(
   argv: readonly string[],
-  dependencies: Partial<ProgramDependencies> = {},
+  commands: ProgramDependencies,
 ): Promise<number> {
-  const writeError =
-    dependencies.writeError ?? ((message: string) => process.stderr.write(message));
-  const program = createProgram({
-    up: dependencies.up ?? createRuntimeUp(),
-    open: dependencies.open ?? createRuntimeOpen(),
-    reap: dependencies.reap ?? createRuntimeReap(),
-    writeError,
-    writeOutput: dependencies.writeOutput ?? ((message: string) => process.stdout.write(message)),
-  });
+  const program = createProgram(commands);
+
   try {
     await program.parseAsync(argv, { from: "user" });
     return 0;
@@ -374,7 +262,7 @@ export async function run(
       return error.exitCode;
     }
     const message = error instanceof Error ? error.message : String(error);
-    writeError(`termwire: ${message}\n`);
+    commands.writeError(`termwire: ${message}\n`);
     return 1;
   }
 }
