@@ -30,6 +30,32 @@ if [ "$actual" != "$expected" ]; then
   exit 1
 fi
 
+echo "--- cli: install help and prompt module"
+# Captured rather than piped: `grep -q` closes the pipe early and Node reports EPIPE.
+help="$(node "$cli" install --help)"
+case "$help" in
+  *"--layout <name>"*) ;;
+  *) echo "install help is missing --layout" >&2; exit 1 ;;
+esac
+# The prompt module is imported lazily at runtime, so load it explicitly: a Bun-only
+# or extensionless import inside it would otherwise only fail for a user.
+node --input-type=module -e "await import('$root/packages/cli/dist/install-prompt.js')"
+
+echo "--- cli: the skill ships and resolves from dist"
+node --input-type=module -e "
+  const { skillSourcePath } = await import('$root/packages/cli/dist/skill.js');
+  const { readFileSync } = await import('node:fs');
+  const text = readFileSync(skillSourcePath(), 'utf8');
+  if (!text.includes('termwire open')) throw new Error('skill file is not the skill');
+"
+
+echo "--- cli: install refuses to guess without a terminal"
+actual="$(node "$cli" install < /dev/null 2>&1 || true)"
+case "$actual" in
+  *"pass --yes, --layout or --agents"*) ;;
+  *) echo "unexpected install output: $actual" >&2; exit 1 ;;
+esac
+
 echo "--- cli: loads the nvim and tmux adapters"
 actual="$(env -u TERMWIRE_SOCKET node "$cli" open README.md 2>&1 || true)"
 case "$actual" in

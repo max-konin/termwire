@@ -19,30 +19,31 @@ const workspaceEnv = {
   TERMWIRE_EDITOR_PANE: "%3",
 };
 
-test("parses a trailing line suffix and explicit line options", () => {
-  const cases: { target: string; line?: string; expected: { path: string; line?: number } }[] = [
-    { target: "src/app.ts", expected: { path: "src/app.ts" } },
-    { target: "src/app.ts:42", expected: { path: "src/app.ts", line: 42 } },
-    { target: "  src/app.ts:42  ", expected: { path: "src/app.ts", line: 42 } },
-    { target: "/abs/src/app.ts:1", expected: { path: "/abs/src/app.ts", line: 1 } },
-    { target: "weird:name.ts", expected: { path: "weird:name.ts" } },
-    { target: "a:1:2", expected: { path: "a:1", line: 2 } },
-    { target: "weird:42", line: "7", expected: { path: "weird:42", line: 7 } },
-    { target: "src/app.ts", line: "42", expected: { path: "src/app.ts", line: 42 } },
-  ];
-
-  for (const { target, line, expected } of cases) {
+test.each([
+  ["src/app.ts", undefined, { path: "src/app.ts" }],
+  ["src/app.ts:42", undefined, { path: "src/app.ts", line: 42 }],
+  ["  src/app.ts:42  ", undefined, { path: "src/app.ts", line: 42 }],
+  ["/abs/src/app.ts:1", undefined, { path: "/abs/src/app.ts", line: 1 }],
+  ["weird:name.ts", undefined, { path: "weird:name.ts" }],
+  ["a:1:2", undefined, { path: "a:1", line: 2 }],
+  ["weird:42", "7", { path: "weird:42", line: 7 }],
+  ["src/app.ts", "42", { path: "src/app.ts", line: 42 }],
+] as [string, string | undefined, { path: string; line?: number }][])(
+  "parses %p with line %p",
+  (target, line, expected) => {
     expect(parseTarget(target, line)).toEqual(expected);
-  }
+  },
+);
+
+test("rejects an empty path", () => {
+  expect(() => parseTarget("   ")).toThrow("path must not be empty");
 });
 
-test("rejects an empty path and a line that is not a positive integer", () => {
-  expect(() => parseTarget("   ")).toThrow("path must not be empty");
+test.each(["", "0", "-1", "1.5", "abc"])("rejects %p as a line option", (line) => {
+  expect(() => parseTarget("src/app.ts", line)).toThrow("line must be a positive integer");
+});
 
-  for (const line of ["", "0", "-1", "1.5", "abc"]) {
-    expect(() => parseTarget("src/app.ts", line)).toThrow("line must be a positive integer");
-  }
-
+test("rejects a zero line suffix", () => {
   expect(() => parseTarget("src/app.ts:0")).toThrow("line must be a positive integer");
 });
 

@@ -30,6 +30,19 @@ termwire open src/app.ts:42     # jump the editor to that line
 Bun works too and is what the repository is developed with, but nothing
 published here requires it.
 
+## Setup
+
+```bash
+npx @termwire/cli install
+```
+
+Picks a layout — the window arrangement is drawn beside the list as you move
+through it — writes it to `~/.config/termwire/config.jsonc` or the repository's
+`.termwire.jsonc`, and installs a `termwire-open` skill for the agents you
+select. Everything it does is also a flag, and a run whose flags
+leave nothing to ask never prompts: `termwire install --layout focused --agents claude`. See
+[the CLI README](packages/cli/README.md#install) for what it will not do.
+
 ## The workspace
 
 `termwire up <name>` creates or attaches to the tmux session
@@ -85,23 +98,35 @@ The command needs `TERMWIRE_SOCKET`, so the agent must run in a shell created
 by `termwire up`. Outside a workspace it fails with `not inside a termwire
 workspace`.
 
-Any agent that can run a shell command can use it. Tell yours about it once, in
-`AGENTS.md` or `CLAUDE.md`:
+Any agent that can run a shell command can use it, and `termwire install` is
+what tells yours how. It writes a `termwire-open` skill where the agent looks for
+skills — `~/.claude/skills/termwire-open/SKILL.md` for Claude Code,
+`$XDG_CONFIG_HOME/opencode/skills/` for OpenCode. Codex has no skills, so the
+command prints the one line to add to `~/.codex/AGENTS.md` instead:
 
 ```markdown
 To show the user a file, run `termwire open <path>:<line>`.
 ```
 
-For agents that should not run shell commands, `@termwire/mcp` exposes the same
-thing as an MCP tool, and `@termwire/opencode-plugin` exposes it as a native
-OpenCode tool. Pick one; two of them means two identical tools in the agent's
-context.
+A skill costs nothing to keep: the agent runs one command when it has a file
+worth showing. Allow it once, with a rule like `Bash(termwire open:*)`, and the
+approval prompt stops too.
+
+For an agent that may not run shell commands at all, `@termwire/mcp` exposes the
+same operation as an MCP tool and `@termwire/opencode-plugin` as a native OpenCode
+tool. Both are still published, and the MCP server is the one thing here that costs
+a process: it lives for as long as the agent session does, so a machine running a
+dozen agents carries a dozen of them. Prefer the skill, and configure exactly one
+of the three — two means the agent sees the same tool twice.
 
 ```bash
-claude mcp add termwire -- npx -y @termwire/mcp
+npm install -g @termwire/mcp
+claude mcp add termwire -- termwire-mcp
 ```
 
-Register it from inside a Termwire shell, so the server inherits the socket.
+Register it from inside a Termwire shell, so the server inherits the socket, and
+point it at the installed binary rather than `npx -y @termwire/mcp`: a package
+runner stays alive beside every server it launched.
 
 ## Layouts
 

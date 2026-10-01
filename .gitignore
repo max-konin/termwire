@@ -33,3 +33,6 @@ packages/*/dist/
 ROADMAP.md
 
 docs/superpowers
+
+# Machine-local tool permissions
+.claude/settings.local.json

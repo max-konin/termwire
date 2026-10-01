@@ -8,7 +8,7 @@ test("loads global config from XDG_CONFIG_HOME using UTF-8", async () => {
     );
   const loader = createConfigLoader({
     env: { XDG_CONFIG_HOME: "/xdg" },
-    homedir: () => "/home/max",
+    homedir: () => "/home/user",
     exists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
     readFile,
   });
@@ -25,14 +25,14 @@ test("falls back to the home config directory for global config", async () => {
     );
   const loader = createConfigLoader({
     env: {},
-    homedir: () => "/home/max",
+    homedir: () => "/home/user",
     exists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
     readFile,
   });
 
   await loader.loadGlobal();
 
-  expect(readFile).toHaveBeenCalledWith("/home/max/.config/termwire/config.jsonc", "utf8");
+  expect(readFile).toHaveBeenCalledWith("/home/user/.config/termwire/config.jsonc", "utf8");
 });
 
 test.each([
@@ -47,14 +47,14 @@ test.each([
       );
     const loader = createConfigLoader({
       env: { XDG_CONFIG_HOME },
-      homedir: () => "/home/max",
+      homedir: () => "/home/user",
       exists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
       readFile,
     });
 
     await loader.loadGlobal();
 
-    expect(readFile).toHaveBeenCalledWith("/home/max/.config/termwire/config.jsonc", "utf8");
+    expect(readFile).toHaveBeenCalledWith("/home/user/.config/termwire/config.jsonc", "utf8");
   },
 );
 
@@ -65,7 +65,7 @@ test("returns undefined for a missing optional global config", async () => {
     );
   const loader = createConfigLoader({
     env: { XDG_CONFIG_HOME: "/xdg" },
-    homedir: () => "/home/max",
+    homedir: () => "/home/user",
     exists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(false),
     readFile,
   });
@@ -78,7 +78,7 @@ test("returns undefined when an existing config disappears before it is read", a
   const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
   const loader = createConfigLoader({
     env: { XDG_CONFIG_HOME: "/xdg" },
-    homedir: () => "/home/max",
+    homedir: () => "/home/user",
     exists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
     readFile:
       mock<(path: string, encoding: "utf8") => Promise<string>>().mockRejectedValue(missing),
@@ -94,7 +94,7 @@ test("loads project config from the resolved Git root using UTF-8", async () => 
     );
   const loader = createConfigLoader({
     env: {},
-    homedir: () => "/home/max",
+    homedir: () => "/home/user",
     exists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
     readFile,
   });
@@ -107,7 +107,7 @@ test("loads project config from the resolved Git root using UTF-8", async () => 
 test("parses JSONC comments and trailing commas", async () => {
   const loader = createConfigLoader({
     env: { XDG_CONFIG_HOME: "/xdg" },
-    homedir: () => "/home/max",
+    homedir: () => "/home/user",
     exists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
     readFile: mock<(path: string, encoding: "utf8") => Promise<string>>().mockResolvedValue(
       '// note\n{ "version": 1, }',
@@ -123,7 +123,7 @@ test("parses JSONC comments and trailing commas", async () => {
 test("reports malformed JSONC with its source and one-based location", async () => {
   const loader = createConfigLoader({
     env: { XDG_CONFIG_HOME: "/xdg" },
-    homedir: () => "/home/max",
+    homedir: () => "/home/user",
     exists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
     readFile:
       mock<(path: string, encoding: "utf8") => Promise<string>>().mockResolvedValue(
@@ -137,7 +137,7 @@ test("reports malformed JSONC with its source and one-based location", async () 
 test("reports malformed JSONC with lone-CR line endings", async () => {
   const loader = createConfigLoader({
     env: { XDG_CONFIG_HOME: "/xdg" },
-    homedir: () => "/home/max",
+    homedir: () => "/home/user",
     exists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
     readFile:
       mock<(path: string, encoding: "utf8") => Promise<string>>().mockResolvedValue(
@@ -152,7 +152,7 @@ test("wraps an unreadable existing config with its source and cause", async () =
   const cause = Object.assign(new Error("permission denied"), { code: "EACCES" });
   const loader = createConfigLoader({
     env: { XDG_CONFIG_HOME: "/xdg" },
-    homedir: () => "/home/max",
+    homedir: () => "/home/user",
     exists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(true),
     readFile: mock<(path: string, encoding: "utf8") => Promise<string>>().mockRejectedValue(cause),
   });

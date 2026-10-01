@@ -1,9 +1,12 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve as resolvePath } from "node:path";
 import { Command, CommanderError } from "commander";
+import { agentIds, parseAgentIds } from "./agents.js";
 import { prepareBranch } from "./branch.js";
-import { createConfigLoader } from "./config-loader.js";
+import { configHome, createConfigLoader, globalConfigPath } from "./config-loader.js";
 import { resolveLayout } from "./config-validation.js";
+import { writeConfigFile } from "./config-writer.js";
+import { type InstallRequest, type InstallResult, install, noLayout } from "./install.js";
 import { createLayout } from "./layout.js";
 import { type OpenRequest, type OpenResult, open } from "./open.js";
 import { createProcessScanner } from "./process-scan.js";
@@ -16,6 +19,8 @@ import {
 } from "./reap.js";
 import { ensureReapHook, reapCommandName } from "./reap-hook.js";
 import type { CliRuntime, RuntimeFileSystem } from "./runtime.js";
+import { skillSourcePath } from "./skill.js";
+import { layoutTemplateIds } from "./templates.js";
 import { type UpRequest, up } from "./up.js";
 import { findGitRoot, prepareWorktree } from "./worktree.js";
 
@@ -33,6 +38,7 @@ export interface ProgramDependencies {
   up: (request: UpRequest) => Promise<void>;
   open: (request: OpenRequest) => Promise<OpenResult>;
   reap: (session: string) => Promise<void>;
+  install: (request: InstallRequest) => Promise<InstallResult>;
   writeError: (message: string) => void;
   writeOutput: (message: string) => void;
 }
@@ -153,12 +159,41 @@ async function appendQuietly(path: string, line: string, fs: RuntimeFileSystem):
   }
 }
 
+export function createInstall({
+  fs,
+  host,
+  git,
+  createPrompter,
+}: CliRuntime): (request: InstallRequest) => Promise<InstallResult> {
+  return async (request) => {
+    const prompt = host.isTerminal && request.yes !== true ? await createPrompter() : undefined;
+
+    return await install(request, {
+      cwd: host.cwd,
+      findGitRoot: (directory) => findGitRoot(git, directory),
+      globalConfigPath: () => globalConfigPath({ env: host.env, homedir: host.homedir }),
+      agentPaths: {
+        home: host.homedir(),
+        configHome: configHome({ env: host.env, homedir: host.homedir }),
+      },
+      skillSource: skillSourcePath(),
+      pathExists: fs.exists,
+      readFile: fs.readFile,
+      writeConfig: (options) => writeConfigFile(options, { ...fs, suffix: host.randomId }),
+      write: host.writeOutput,
+      isTerminal: host.isTerminal,
+      ...(prompt === undefined ? {} : { prompt }),
+    });
+  };
+}
+
 /** Binds every command to one runtime. The only caller that needs the real one. */
 export function createCommands(runtime: CliRuntime): ProgramDependencies {
   return {
     up: createUp(runtime),
     open: createOpen(runtime),
     reap: createReap(runtime),
+    install: createInstall(runtime),
     writeError: runtime.host.writeError,
     writeOutput: runtime.host.writeOutput,
   };
@@ -225,6 +260,54 @@ Target syntax:
       const suffix = result.line === undefined ? "" : ` at line ${result.line}`;
       dependencies.writeOutput(`Opened ${result.path}${suffix}\n`);
     });
+
+  program
+    .command("install")
+    .description("write a layout config and install the file-opening skill for your agents")
+    .option(
+      "-l, --layout <name>",
+      `layout template: ${[...layoutTemplateIds, noLayout].join(", ")}`,
+    )
+    .option(
+      "-p, --project",
+      "write .termwire.jsonc in this repository instead of the global config",
+    )
+    .option("-a, --agents <list>", `comma-separated: ${agentIds.join(", ")}, or none`)
+    .option("-f, --force", "replace an existing config, or a skill file you own")
+    .option("-y, --yes", "never prompt: default layout, and no agents unless --agents")
+    .addHelpText(
+      "after",
+      `
+Run it before installing anything:
+  npx @termwire/cli install
+
+Interactive by default, and silent once the flags leave nothing to ask: --yes, or
+--layout together with --agents. The skill teaches an agent to run ${"`termwire open`"}, which costs
+no process, unlike the ${"`@termwire/mcp`"} server it replaces. It only ever adds its own file
+to an agent's skills directory and never edits another tool's configuration.
+`,
+    )
+    .action(
+      async (options: {
+        layout?: string;
+        project?: true;
+        agents?: string;
+        force?: true;
+        yes?: true;
+      }) => {
+        const result = await dependencies.install({
+          ...(options.layout === undefined ? {} : { layout: options.layout }),
+          ...(options.project === undefined ? {} : { project: true }),
+          ...(options.agents === undefined ? {} : { agents: parseAgentIds(options.agents) }),
+          ...(options.force === undefined ? {} : { force: true }),
+          ...(options.yes === undefined ? {} : { yes: true }),
+        });
+
+        if (result.failures.length > 0) {
+          throw new Error(`install finished with errors: ${result.failures.join("; ")}`);
+        }
+      },
+    );
 
   // Part of the `up` lifecycle, not a user-facing command: the global tmux
   // `session-closed` hook installed by `up` invokes it with the closed session.
