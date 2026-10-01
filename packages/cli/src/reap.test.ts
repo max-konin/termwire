@@ -319,9 +319,9 @@ describe("formatReapReport", () => {
 describe("reapLogPath", () => {
   test.each([
     [{ XDG_STATE_HOME: "/state" }, "/state/termwire/reap.log"],
-    [{ XDG_STATE_HOME: "relative" }, "/home/max/.local/state/termwire/reap.log"],
-    [{}, "/home/max/.local/state/termwire/reap.log"],
+    [{ XDG_STATE_HOME: "relative" }, "/home/user/.local/state/termwire/reap.log"],
+    [{}, "/home/user/.local/state/termwire/reap.log"],
   ])("resolves %o", (env, expected) => {
-    expect(reapLogPath({ env, homedir: () => "/home/max" })).toBe(expected);
+    expect(reapLogPath({ env, homedir: () => "/home/user" })).toBe(expected);
   });
 });

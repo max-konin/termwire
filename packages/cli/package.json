@@ -16,6 +16,7 @@
   },
   "files": [
     "dist",
+    "skills",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
@@ -37,6 +38,8 @@
     "url": "https://github.com/max-konin/termwire/issues"
   },
   "dependencies": {
+    "@clack/core": "^1.5.1",
+    "@clack/prompts": "^1.8.1",
     "@termwire/nvim": "^0.4.1",
     "@termwire/tmux": "^0.4.1",
     "commander": "^15.0.0",

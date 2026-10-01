@@ -18,6 +18,69 @@ Workspace identity is stateless. It lives in the environment variables that
 configuration is optional JSONC read when a session is created; it is not
 workspace state.
 
+## `install`
+
+```bash
+npx @termwire/cli install          # before anything is installed
+termwire install                   # after
+```
+
+Writes a layout configuration and installs a `termwire-open` skill for the agents
+you pick. Interactive by default, with each layout's windows drawn beside the list
+as you move through it, and silent once the flags leave nothing to ask: `--yes`, or
+`--layout` together with `--agents`. A script wants the silent form, because a
+half-specified run still stops for the confirmation.
+
+| Option | Meaning |
+| --- | --- |
+| `-l, --layout <name>` | `default`, `three-window`, `focused`, `full-stack`, or `none` |
+| `-p, --project` | write `.termwire.jsonc` in the Git root instead of the global config |
+| `-a, --agents <list>` | comma-separated `claude`, `codex`, `opencode`, or `none` |
+| `-f, --force` | replace an existing config, or a skill file you own |
+| `-y, --yes` | never prompt: default layout, and no agents unless `--agents` says so |
+
+### The layout
+
+The templates are the layouts from the cookbook below, comments included, so what
+you get is what is documented. A config that is already there is kept unless you
+name a layout: a run meant for the agents does not fail over a file nobody asked to
+replace. `--agents` without `--layout` leaves the configuration out of the run
+entirely, so such a run never creates one either. Naming one and passing `--force` replaces it through a temporary file
+and a single rename, so a crash cannot leave `up` reading half a config.
+
+### The skill
+
+The skill teaches the agent one command, `termwire open <path>:<line>`. It costs
+no process, which is the whole reason it replaced registering `@termwire/mcp`: an
+MCP server lives for as long as the agent session, so a machine running a dozen
+agents carried a dozen of them. The server is still published for an agent that
+may not run shell commands; this command no longer registers it.
+
+| Agent | Where the skill goes |
+| --- | --- |
+| Claude Code | `~/.claude/skills/termwire-open/SKILL.md` |
+| OpenCode | `$XDG_CONFIG_HOME/opencode/skills/termwire-open/SKILL.md` |
+| Codex | no skills — the line to add to `~/.codex/AGENTS.md` is printed |
+
+An agent is offered only when its own directory exists, which is what proves it is
+set up here; a name on `PATH` is not, because a version manager's shim outlives the
+binary behind it. Nothing is ever written into an agent's configuration — the skill
+is our own file in a directory the agent reads, and Codex's instructions stay yours
+to edit.
+
+The file ships as Markdown in this package, so you can read exactly what your agent
+was told, and it ends with a marker line. A skill carrying that marker is ours and
+gets upgraded silently when this package changes it — including a copy you edited but
+left the marker in. Delete the line and the file becomes yours: `install` keeps it and
+says so, and only `--force` replaces it.
+
+### What it will not do
+
+It cannot install the CLI itself, because `npx` runs from a cache it does not own,
+and it does not touch the tmux cleanup hook, which `up` installs from a stable
+path. Every question is asked before the plan is confirmed, and nothing is written
+until then. Re-running changes only what has actually changed.
+
 ## `up`
 
 | Command | Workspace | Branch |
@@ -393,19 +456,27 @@ while preserving the original failure.
   tmux `session-closed` hook that `up` installs.
 - `open <target>` resolves the path, checks that Neovim answers on the socket,
   opens the file, then focuses the editor pane when one is known.
-- The CLI does not need to be in `PATH` for the MCP server or the OpenCode
-  plugin. Both compose the nvim and tmux adapters directly.
+- `install` writes files and reads directories; it starts no process of its own and
+  runs no other tool's CLI.
+- The CLI does not need to be in `PATH` for the MCP server or the OpenCode plugin,
+  which compose the nvim and tmux adapters directly. The skill is the opposite case:
+  it tells the agent to run `termwire open`, so there the CLI does have to be on
+  `PATH`.
 
 ## Dependencies
 
-Commander 15 parses `up`; `jsonc-parser` handles JSONC parsing and diagnostics;
-Zod 4 provides strict structural config validation. All three are direct runtime
-dependencies.
+Commander 15 parses the commands; `jsonc-parser` handles JSONC parsing and diagnostics;
+Zod 4 provides strict structural config validation; `@clack/prompts` and
+`@clack/core` draw the `install` prompts, loaded only when there is a terminal to
+draw on. All of them are direct runtime dependencies.
 `@termwire/tmux` and `@termwire/nvim` are thin adapters over their binaries;
 the CLI owns workspace policy and orchestration.
 
 ## Alternatives for opening files
 
-`@termwire/mcp` exposes the same open operation as an MCP tool and
-`@termwire/opencode-plugin` as a native OpenCode tool. They exist for agents
-that should not run shell commands. Configure one of the three, not several.
+The skill `install` writes is the cheap path: the agent runs one shell command and
+nothing stays resident. `@termwire/mcp` exposes the same operation as an MCP tool
+and `@termwire/opencode-plugin` as a native OpenCode tool; both remain published
+for an agent that may not run shell commands. The MCP server is the only one that
+costs a process per agent session. Configure exactly one of the three — two means
+the agent sees the same tool twice.

@@ -20,15 +20,28 @@ must be started inside that Termwire shell. When `TERMWIRE_EDITOR_PANE` is also
 present, the server focuses that pane after opening; without it, opening still
 succeeds.
 
+## When to use this
+
+`@termwire/cli` installs a `termwire-open` skill that teaches an agent to run
+`termwire open` directly, and that costs no process at all. Prefer it. This server
+exists for an agent that may not run shell commands: it is one process per agent
+session, alive for as long as the session is.
+
 ## Install
 
-Register the server with `npx`, or install it globally and point at the
-binary:
+Install it and register the binary. `npx -y @termwire/mcp` works, but a package
+runner does not exec away: it stays as a parent process for as long as the server
+runs, so every agent that registers the runner pays for an extra idle process.
+
+Install it, then register `termwire-mcp` as the command:
 
 ```bash
-npx -y @termwire/mcp
-npm install -g @termwire/mcp && termwire-mcp
+npm install -g @termwire/mcp
 ```
+
+Or register `npx -y @termwire/mcp` and skip the install, at the cost of one extra
+process beside every server. Do not run either line by hand to "test" it: the server
+speaks MCP over stdio and will sit there waiting.
 
 Do not register `bunx @termwire/mcp` as the command. `bunx` caches into
 `$TMPDIR`, and on macOS the `com.apple.bsd.dirhelper` job runs nightly at 03:35
@@ -55,7 +68,7 @@ server does not track files and never opens one on its own.
 ## Claude Code
 
 ```bash
-claude mcp add termwire -- npx -y @termwire/mcp
+claude mcp add termwire -- termwire-mcp
 ```
 
 Run this from a Termwire shell, then confirm with `claude mcp list` or `/mcp`.

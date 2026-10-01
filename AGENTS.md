@@ -58,6 +58,19 @@
   share the same behavior and read the same environment. `doctor`, `status`, `files`, `open-last`,
   and persistent workspace state are not implemented. Optional global/project JSONC files
   configure only the windows and panes created for a new session.
+- `install` writes a layout template and installs the `termwire-open` skill for the agents
+  that take one: `~/.claude/skills/termwire-open/SKILL.md` and
+  `$XDG_CONFIG_HOME/opencode/skills/…`. Codex has no skills, so it only gets the line to add
+  printed. The command starts no process and runs no other tool's CLI; an agent counts as
+  present when its own directory exists, never by a name on `PATH`, because a version
+  manager's shim outlives the binary behind it.
+- The skill replaced registering `@termwire/mcp`, which is still published for agents that
+  may not run a shell command. The reason is cost: an MCP server is one process per agent
+  session for the session's whole life, a skill is a file.
+- The shipped `packages/cli/skills/termwire-open/SKILL.md` ends with a marker line. A file
+  carrying it is ours and is upgraded silently; without it the file belongs to the user and
+  is kept unless `--force`. Prompts live only in `install-prompt.ts`, which
+  `runtime.createPrompter` imports lazily so `up` and `open` load no terminal UI.
 - Workspace identity is stateless and environment-based:
   `TERMWIRE_SESSION`, `TERMWIRE_SOCKET`, and `TERMWIRE_EDITOR_PANE`.
 - `up` installs one global tmux `session-closed` hook that runs the hidden

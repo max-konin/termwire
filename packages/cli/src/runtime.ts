@@ -1,16 +1,20 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   appendFile as appendFileToDisk,
   mkdir as mkdirDirectory,
   readdir as readDirectory,
   readFile as readFileFromDisk,
+  rename as renameFile,
   stat,
   unlink as unlinkFile,
+  writeFile as writeFileToDisk,
 } from "node:fs/promises";
 import { homedir as getHomeDirectory } from "node:os";
 import { createNvim } from "@termwire/nvim";
 import { createTmux } from "@termwire/tmux";
 import { type Exec, spawnCapture } from "./exec.js";
+import type { InstallPrompter } from "./install.js";
 import type { KillOutcome, ReapSignal } from "./reap.js";
 import type { GitExec } from "./worktree.js";
 
@@ -19,6 +23,9 @@ export interface RuntimeFileSystem {
   readdir: (path: string) => Promise<string[]>;
   exists: (path: string) => Promise<boolean>;
   mkdir: (path: string) => Promise<void>;
+  /** `flag: "wx"` fails on an existing file instead of replacing it. */
+  writeFile: (path: string, contents: string, options?: { flag: "wx" }) => Promise<void>;
+  rename: (from: string, to: string) => Promise<void>;
   appendFile: (path: string, contents: string) => Promise<void>;
   unlink: (path: string) => Promise<void>;
 }
@@ -34,6 +41,10 @@ export interface RuntimeHost {
   /** The launched script, which the tmux hook has to name by absolute path. */
   scriptPath: string | undefined;
   now: () => Date;
+  /** A unique name for a temporary file, so two writers cannot collide. */
+  randomId: () => string;
+  /** Whether there is a terminal to ask questions on, both ways. */
+  isTerminal: boolean;
   kill: (pid: number, signal: ReapSignal) => KillOutcome;
   wait: (milliseconds: number) => Promise<void>;
   writeOutput: (message: string) => void;
@@ -58,6 +69,8 @@ export interface CliRuntime {
   git: GitExec;
   tmux: ReturnType<typeof createTmux>;
   nvim: ReturnType<typeof createNvim>;
+  /** Built on demand, so a command that never asks anything loads no terminal UI. */
+  createPrompter: () => Promise<InstallPrompter>;
 }
 
 /**
@@ -87,6 +100,9 @@ export function createNodeRuntime(): CliRuntime {
       mkdir: async (path) => {
         await mkdirDirectory(path, { recursive: true });
       },
+      writeFile: (path, contents, options) =>
+        writeFileToDisk(path, contents, options ? { flag: options.flag } : undefined),
+      rename: renameFile,
       appendFile: appendFileToDisk,
       unlink: unlinkFile,
     },
@@ -100,6 +116,8 @@ export function createNodeRuntime(): CliRuntime {
       execPath: process.execPath,
       scriptPath: process.argv[1],
       now: () => new Date(),
+      randomId: randomUUID,
+      isTerminal: process.stdin.isTTY === true && process.stdout.isTTY === true,
       kill: killProcess,
       wait: waitFor,
       writeOutput: (message) => process.stdout.write(message),
@@ -108,6 +126,11 @@ export function createNodeRuntime(): CliRuntime {
     exec: spawnCapture,
     git: executeGit,
     ...createAdapters({ exec: spawnCapture, env }),
+    // Imported here and not at the top, so `up` and `open` never load the prompts.
+    createPrompter: async () =>
+      (await import("./install-prompt.js")).createClackPrompter({
+        columns: process.stdout.columns ?? 80,
+      }),
   };
 }
 

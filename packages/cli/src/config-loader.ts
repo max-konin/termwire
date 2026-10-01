@@ -23,13 +23,22 @@ export function createConfigLoader(dependencies: ConfigLoaderDependencies): {
   };
 }
 
-function globalConfigPath(dependencies: ConfigLoaderDependencies): string {
+/** `$XDG_CONFIG_HOME` when it is absolute, `~/.config` otherwise. */
+export function configHome(dependencies: {
+  env: Record<string, string | undefined>;
+  homedir: () => string;
+}): string {
   const xdgConfigHome = dependencies.env.XDG_CONFIG_HOME;
-  const configHome =
-    xdgConfigHome && isAbsolute(xdgConfigHome)
-      ? xdgConfigHome
-      : join(dependencies.homedir(), ".config");
-  return join(configHome, "termwire", "config.jsonc");
+  return xdgConfigHome && isAbsolute(xdgConfigHome)
+    ? xdgConfigHome
+    : join(dependencies.homedir(), ".config");
+}
+
+export function globalConfigPath(dependencies: {
+  env: Record<string, string | undefined>;
+  homedir: () => string;
+}): string {
+  return join(configHome(dependencies), "termwire", "config.jsonc");
 }
 
 function lineColumn(text: string, offset: number): { line: number; column: number } {

@@ -1,10 +1,13 @@
 import { expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import type { createNvim as createNvimAdapter } from "@termwire/nvim";
 import type { createTmux as createTmuxAdapter } from "@termwire/tmux";
 import packageJson from "../package.json";
 import type { Exec } from "./exec.js";
+import type { InstallPrompter, InstallRequest, InstallResult } from "./install.js";
 import type { OpenRequest, OpenResult } from "./open.js";
 import {
+  createInstall,
   createOpen,
   createProgram,
   createReap,
@@ -20,11 +23,22 @@ import { executeGit } from "./runtime.js";
 import type { UpRequest } from "./up.js";
 import type { GitExec } from "./worktree.js";
 
+function createInstallStub(result: Partial<InstallResult> = {}) {
+  return mock<(request: InstallRequest) => Promise<InstallResult>>().mockResolvedValue({
+    cancelled: false,
+    configWritten: true,
+    agents: [],
+    failures: [],
+    ...result,
+  });
+}
+
 function createCommandStubs(overrides: Partial<ProgramDependencies> = {}): ProgramDependencies {
   return {
     up: mock<(request: UpRequest) => Promise<void>>().mockResolvedValue(),
     open: createOpenStub(),
     reap: createReapStub(),
+    install: createInstallStub(),
     writeError: mock<(message: string) => void>(),
     writeOutput: mock<(message: string) => void>(),
     ...overrides,
@@ -39,6 +53,7 @@ function createTestRuntime(
     git?: GitExec;
     tmux?: ReturnType<typeof createTmuxAdapter>;
     nvim?: ReturnType<typeof createNvimAdapter>;
+    createPrompter?: () => Promise<InstallPrompter>;
   } = {},
 ): CliRuntime {
   return {
@@ -47,6 +62,8 @@ function createTestRuntime(
       readdir: async () => [],
       exists: async () => false,
       mkdir: async () => {},
+      writeFile: async () => {},
+      rename: async () => {},
       appendFile: async () => {},
       unlink: async () => {},
       ...overrides.fs,
@@ -54,13 +71,15 @@ function createTestRuntime(
     host: {
       env: {},
       cwd: () => "/repo",
-      homedir: () => "/home/max",
+      homedir: () => "/home/user",
       platform: "darwin",
       uid: 501,
       pid: 4242,
       execPath: "/usr/local/bin/node",
       scriptPath: "/opt/termwire/bin/termwire.js",
       now: () => new Date("2026-09-28T10:00:00.000Z"),
+      randomId: () => "abc123",
+      isTerminal: false,
       kill: () => "gone",
       wait: async () => {},
       writeOutput: () => {},
@@ -71,6 +90,11 @@ function createTestRuntime(
     git: overrides.git ?? (async () => ({ exitCode: 0, stdout: "", stderr: "" })),
     tmux: overrides.tmux ?? ({} as ReturnType<typeof createTmuxAdapter>),
     nvim: overrides.nvim ?? ({} as ReturnType<typeof createNvimAdapter>),
+    createPrompter:
+      overrides.createPrompter ??
+      (async () => {
+        throw new Error("no prompter in this test");
+      }),
   };
 }
 
@@ -82,44 +106,33 @@ function createReapStub() {
   return mock<(session: string) => Promise<void>>().mockResolvedValue();
 }
 
-test("normalizes supported up worktree forms", async () => {
-  const cases: { argv: string[]; request: UpRequest }[] = [
-    { argv: ["up", "dev"], request: { name: "dev" } },
-    { argv: ["up", "dev", "-w"], request: { name: "dev", worktree: true } },
-    { argv: ["up", "dev", "--worktree"], request: { name: "dev", worktree: true } },
-    { argv: ["up", "dev", "--worktree=feature"], request: { name: "dev", worktree: "feature" } },
-    { argv: ["up", "dev", "--worktree", "feature"], request: { name: "dev", worktree: "feature" } },
-    { argv: ["up", "dev", "-wfeature"], request: { name: "dev", worktree: "feature" } },
-    { argv: ["up", "dev", "-w", "feature"], request: { name: "dev", worktree: "feature" } },
-    { argv: ["up", "dev", "-b", "feature/api"], request: { name: "dev", branch: "feature/api" } },
-    {
-      argv: ["up", "dev", "-w", "-b", "feature/api"],
-      request: { name: "dev", worktree: true, branch: "feature/api" },
-    },
-    {
-      argv: ["up", "dev", "--worktree=legacy", "--branch=feature/api"],
-      request: { name: "dev", worktree: "legacy", branch: "feature/api" },
-    },
-  ];
+test.each([
+  [["up", "dev"], { name: "dev" }],
+  [["up", "dev", "-w"], { name: "dev", worktree: true }],
+  [["up", "dev", "--worktree"], { name: "dev", worktree: true }],
+  [["up", "dev", "--worktree=feature"], { name: "dev", worktree: "feature" }],
+  [["up", "dev", "--worktree", "feature"], { name: "dev", worktree: "feature" }],
+  [["up", "dev", "-wfeature"], { name: "dev", worktree: "feature" }],
+  [["up", "dev", "-w", "feature"], { name: "dev", worktree: "feature" }],
+  [["up", "dev", "-b", "feature/api"], { name: "dev", branch: "feature/api" }],
+  [
+    ["up", "dev", "-w", "-b", "feature/api"],
+    { name: "dev", worktree: true, branch: "feature/api" },
+  ],
+  [
+    ["up", "dev", "--worktree=legacy", "--branch=feature/api"],
+    { name: "dev", worktree: "legacy", branch: "feature/api" },
+  ],
+] as [string[], UpRequest][])("normalizes %p into an up request", async (argv, request) => {
+  const up = mock<(request: UpRequest) => Promise<void>>().mockResolvedValue();
+  const writeError = mock<(message: string) => void>();
+  const program = createProgram(createCommandStubs({ up, writeError }));
 
-  for (const { argv, request } of cases) {
-    const up = mock<(request: UpRequest) => Promise<void>>().mockResolvedValue();
-    const writeError = mock<(message: string) => void>();
-    const writeOutput = mock<(message: string) => void>();
-    const program = createProgram({
-      up,
-      open: createOpenStub(),
-      reap: createReapStub(),
-      writeError,
-      writeOutput,
-    });
+  await program.parseAsync(argv, { from: "user" });
 
-    await program.parseAsync(argv, { from: "user" });
-
-    expect(up).toHaveBeenCalledTimes(1);
-    expect(up).toHaveBeenCalledWith(request);
-    expect(writeError).not.toHaveBeenCalled();
-  }
+  expect(up).toHaveBeenCalledTimes(1);
+  expect(up).toHaveBeenCalledWith(request);
+  expect(writeError).not.toHaveBeenCalled();
 });
 
 test.each([["--version"], ["-V"]])("prints the package version for %s", async (flag) => {
@@ -160,44 +173,39 @@ test("documents the version flag in help", async () => {
   expect(writeOutput.mock.calls.map(([message]) => message).join("")).toContain("-V, --version");
 });
 
-test("prints root and up help to injected stdout", async () => {
-  const cases = [
-    { argv: ["--help"], expected: ["Usage: termwire", "up [options] <name>"] },
-    {
-      argv: ["up", "--help"],
-      expected: [
-        "Usage: termwire up [options] <name>",
-        "-w, --worktree [wt-name]",
-        "-b, --branch <name>",
-        "Branch and worktree selection:",
-        "Without -w, --branch switches the current checkout",
-        "With -w, the optional worktree name selects the directory",
-        "Slashes are preserved in Git branch names",
-        "Existing sessions attach without Git changes",
-      ],
-    },
-  ];
+test.each([
+  [["--help"], ["Usage: termwire", "up [options] <name>"]],
+  [
+    ["up", "--help"],
+    [
+      "Usage: termwire up [options] <name>",
+      "-w, --worktree [wt-name]",
+      "-b, --branch <name>",
+      "Branch and worktree selection:",
+      "Without -w, --branch switches the current checkout",
+      "With -w, the optional worktree name selects the directory",
+      "Slashes are preserved in Git branch names",
+      "Existing sessions attach without Git changes",
+    ],
+  ],
+])("prints %p help to injected stdout", async (argv, expected) => {
+  const up = mock<(request: UpRequest) => Promise<void>>().mockResolvedValue();
+  const writeError = mock<(message: string) => void>();
+  const writeOutput = mock<(message: string) => void>();
 
-  for (const { argv, expected } of cases) {
-    const up = mock<(request: UpRequest) => Promise<void>>().mockResolvedValue();
-    const writeError = mock<(message: string) => void>();
-    const writeOutput = mock<(message: string) => void>();
+  expect(await runCommands(argv, createCommandStubs({ up, writeError, writeOutput }))).toBe(0);
 
-    expect(await runCommands(argv, createCommandStubs({ up, writeError, writeOutput }))).toBe(0);
-
-    const output = writeOutput.mock.calls.flat().join("");
-    for (const value of expected) {
-      expect(output).toContain(value);
-    }
-    expect(up).not.toHaveBeenCalled();
-    expect(writeError).not.toHaveBeenCalled();
+  const output = writeOutput.mock.calls.flat().join("");
+  for (const value of expected) {
+    expect(output).toContain(value);
   }
+  expect(up).not.toHaveBeenCalled();
+  expect(writeError).not.toHaveBeenCalled();
 });
 
-test("reports missing names and invalid options as usage errors", async () => {
-  const cases = [["up"], ["up", "dev", "--unknown"], ["up", "dev", "--branch"]];
-
-  for (const argv of cases) {
+test.each([[["up"]], [["up", "dev", "--unknown"]], [["up", "dev", "--branch"]]])(
+  "reports %p as a usage error",
+  async (argv) => {
     const up = mock<(request: UpRequest) => Promise<void>>().mockResolvedValue();
     const writeError = mock<(message: string) => void>();
     const writeOutput = mock<(message: string) => void>();
@@ -210,8 +218,8 @@ test("reports missing names and invalid options as usage errors", async () => {
     expect(error).toContain("error:");
     expect(error).toContain("Usage:");
     expect(up).not.toHaveBeenCalled();
-  }
-});
+  },
+);
 
 test("presents up failures without a stack trace", async () => {
   const up = mock<(request: UpRequest) => Promise<void>>().mockRejectedValue(
@@ -421,56 +429,37 @@ test("captures Git stdout and exit code", async () => {
   expect(result.stdout).toContain("git version");
 });
 
-test("normalizes supported open target forms", async () => {
-  const cases: { argv: string[]; request: OpenRequest }[] = [
-    { argv: ["open", "src/app.ts"], request: { target: "src/app.ts" } },
-    { argv: ["open", "src/app.ts:42"], request: { target: "src/app.ts:42" } },
-    { argv: ["open", "src/app.ts", "-l", "42"], request: { target: "src/app.ts", line: "42" } },
-    {
-      argv: ["open", "src/app.ts", "--line", "42"],
-      request: { target: "src/app.ts", line: "42" },
-    },
-    { argv: ["open", "src/app.ts", "--line=42"], request: { target: "src/app.ts", line: "42" } },
-  ];
+test.each([
+  [["open", "src/app.ts"], { target: "src/app.ts" }],
+  [["open", "src/app.ts:42"], { target: "src/app.ts:42" }],
+  [["open", "src/app.ts", "-l", "42"], { target: "src/app.ts", line: "42" }],
+  [["open", "src/app.ts", "--line", "42"], { target: "src/app.ts", line: "42" }],
+  [["open", "src/app.ts", "--line=42"], { target: "src/app.ts", line: "42" }],
+] as [string[], OpenRequest][])("normalizes %p into an open request", async (argv, request) => {
+  const open = createOpenStub();
+  const writeError = mock<(message: string) => void>();
 
-  for (const { argv, request } of cases) {
-    const open = createOpenStub();
-    const writeError = mock<(message: string) => void>();
-    const writeOutput = mock<(message: string) => void>();
+  expect(await runCommands(argv, createCommandStubs({ open, writeError }))).toBe(0);
 
-    expect(await runCommands(argv, createCommandStubs({ open, writeError, writeOutput }))).toBe(0);
-
-    expect(open).toHaveBeenCalledTimes(1);
-    expect(open).toHaveBeenCalledWith(request);
-    expect(writeError).not.toHaveBeenCalled();
-  }
+  expect(open).toHaveBeenCalledTimes(1);
+  expect(open).toHaveBeenCalledWith(request);
+  expect(writeError).not.toHaveBeenCalled();
 });
 
-test("reports the opened path and line on stdout", async () => {
-  const cases: { result: OpenResult; expected: string }[] = [
-    {
-      result: { path: "/repo/src/app.ts", line: 42 },
-      expected: "Opened /repo/src/app.ts at line 42\n",
-    },
-    { result: { path: "/repo/README.md" }, expected: "Opened /repo/README.md\n" },
-  ];
+test.each([
+  [{ path: "/repo/src/app.ts", line: 42 }, "Opened /repo/src/app.ts at line 42\n"],
+  [{ path: "/repo/README.md" }, "Opened /repo/README.md\n"],
+] as [OpenResult, string][])("reports %p on stdout", async (result, expected) => {
+  const writeOutput = mock<(message: string) => void>();
 
-  for (const { result, expected } of cases) {
-    const writeOutput = mock<(message: string) => void>();
+  expect(
+    await runCommands(
+      ["open", "src/app.ts"],
+      createCommandStubs({ open: createOpenStub(result), writeOutput }),
+    ),
+  ).toBe(0);
 
-    expect(
-      await runCommands(
-        ["open", "src/app.ts"],
-        createCommandStubs({
-          open: createOpenStub(result),
-          writeError: mock<(message: string) => void>(),
-          writeOutput,
-        }),
-      ),
-    ).toBe(0);
-
-    expect(writeOutput).toHaveBeenCalledWith(expected);
-  }
+  expect(writeOutput).toHaveBeenCalledWith(expected);
 });
 
 test("prints open help to injected stdout", async () => {
@@ -743,4 +732,133 @@ test("records a failed runtime reap and reports it as a command failure", async 
     "2026-09-28T10:00:00.000Z session=repo-dev error=process scanning is not supported on plan9\n",
   );
   expect(writeError).toHaveBeenCalledWith("termwire: process scanning is not supported on plan9\n");
+});
+
+test.each([
+  [["install"], {}],
+  [["install", "--yes"], { yes: true }],
+  [["install", "-y"], { yes: true }],
+  [["install", "--layout", "focused"], { layout: "focused" }],
+  [["install", "-l", "none"], { layout: "none" }],
+  [["install", "--project"], { project: true }],
+  [["install", "--force"], { force: true }],
+  [["install", "--agents", "claude,opencode"], { agents: ["claude", "opencode"] }],
+  [["install", "--agents", "none"], { agents: [] }],
+  [
+    ["install", "-l", "default", "-a", "claude", "-p", "-f", "-y"],
+    { layout: "default", agents: ["claude"], project: true, force: true, yes: true },
+  ],
+] as [string[], InstallRequest][])(
+  "normalizes %p into an install request",
+  async (argv, request) => {
+    const install = createInstallStub();
+
+    expect(await runCommands(argv, createCommandStubs({ install }))).toBe(0);
+    expect(install).toHaveBeenCalledWith(request);
+  },
+);
+
+test("reports an unknown agent without calling install", async () => {
+  const install = createInstallStub();
+  const writeError = mock<(message: string) => void>();
+
+  expect(
+    await runCommands(
+      ["install", "--agents", "cursor"],
+      createCommandStubs({ install, writeError }),
+    ),
+  ).toBe(1);
+  expect(install).not.toHaveBeenCalled();
+  expect(writeError).toHaveBeenCalledWith(
+    "termwire: unknown agent: cursor (expected claude, codex, opencode)\n",
+  );
+});
+
+test("exits non-zero when a step of install failed", async () => {
+  const writeError = mock<(message: string) => void>();
+
+  expect(
+    await runCommands(
+      ["install", "--yes"],
+      createCommandStubs({
+        install: createInstallStub({ configWritten: false, failures: ["config exists"] }),
+        writeError,
+      }),
+    ),
+  ).toBe(1);
+  expect(writeError).toHaveBeenCalledWith(
+    "termwire: install finished with errors: config exists\n",
+  );
+});
+
+test("documents install in the root help", async () => {
+  const writeOutput = mock<(message: string) => void>();
+
+  await runCommands(["--help"], createCommandStubs({ writeOutput }));
+
+  expect(writeOutput.mock.calls.map(([message]) => message).join("")).toContain(
+    "install [options]",
+  );
+});
+
+test("composes install from the runtime: writes the config and the skill", async () => {
+  const writeFile = mock<RuntimeFileSystem["writeFile"]>().mockResolvedValue();
+  const rename = mock<RuntimeFileSystem["rename"]>().mockResolvedValue();
+  const runtimeInstall = createInstall(
+    createTestRuntime({
+      fs: {
+        writeFile,
+        rename,
+        // Claude is set up here, Codex is not.
+        exists: async (path) => path === "/home/user/.claude",
+        // The real shipped skill, read the way the runtime reads it.
+        readFile: async (path) => readFileSync(path, "utf8"),
+      },
+      host: { env: { XDG_CONFIG_HOME: "/xdg" }, homedir: () => "/home/user" },
+    }),
+  );
+
+  const result = await runtimeInstall({ layout: "default", agents: ["claude", "codex"] });
+
+  expect(writeFile).toHaveBeenCalledWith(
+    "/xdg/termwire/config.jsonc",
+    expect.stringContaining('"role": "editor"'),
+    { flag: "wx" },
+  );
+  // Nothing was there, so the skill is created exclusively rather than replaced.
+  expect(writeFile).toHaveBeenCalledWith(
+    "/home/user/.claude/skills/termwire-open/SKILL.md",
+    expect.stringContaining("termwire open <path>[:<line>]"),
+    { flag: "wx" },
+  );
+  expect(rename).not.toHaveBeenCalled();
+  expect(result.agents).toEqual([
+    { id: "claude", outcome: "installed" },
+    { id: "codex", outcome: "unavailable" },
+  ]);
+});
+
+test("never builds a prompter without a terminal", async () => {
+  const createPrompter = mock<() => Promise<InstallPrompter>>().mockRejectedValue(
+    new Error("should not be called"),
+  );
+
+  await createInstall(createTestRuntime({ createPrompter, host: { isTerminal: false } }))({
+    layout: "none",
+    agents: [],
+  });
+
+  expect(createPrompter).not.toHaveBeenCalled();
+});
+
+test("skips the prompter when --yes answers everything", async () => {
+  const createPrompter = mock<() => Promise<InstallPrompter>>().mockRejectedValue(
+    new Error("should not be called"),
+  );
+
+  await createInstall(
+    createTestRuntime({ createPrompter, host: { isTerminal: true, env: { PATH: "" } } }),
+  )({ yes: true, layout: "none" });
+
+  expect(createPrompter).not.toHaveBeenCalled();
 });
