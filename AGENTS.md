@@ -52,7 +52,7 @@
 
 ## Current scope and gotchas
 
-- Treat package READMEs, `PDR.md`, and `ROADMAP.md` as design intent, not implemented behavior.
+- Treat package READMEs and `PDR.md` as design intent, not implemented behavior.
 - The CLI owns `up <name>` (`-w/--worktree`, `-b/--branch`) and `open <target>` (`-l/--line`).
   File opening also ships as the OpenCode plugin tool and the `@termwire/mcp` server; all three
   share the same behavior and read the same environment. `doctor`, `status`, `files`, `open-last`,

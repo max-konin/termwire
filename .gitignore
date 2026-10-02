@@ -30,7 +30,6 @@ packages/*/dist/
 # Finder (macOS) folder config
 .DS_Store
 
-ROADMAP.md
 
 docs/superpowers
 

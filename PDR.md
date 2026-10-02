@@ -1,7 +1,6 @@
 # Termwire — Product Design Record
 
 **Status:** implemented through the `open` command and the Node runtime move.
-See [ROADMAP.md](ROADMAP.md) for per-phase status and what was dropped.
 
 ## Vision
 
@@ -32,8 +31,7 @@ Termwire is not an AI agent, an editor plugin, a tmux replacement, a session
 persistence framework, or a generic automation platform.
 
 It does not track which files an agent changed. Git already answers that
-question, and a tracking layer would duplicate it for no gain. See
-[ROADMAP.md](ROADMAP.md) for the full reasoning behind dropping it.
+question, and a tracking layer would duplicate it for no gain.
 
 ## Runtime
 

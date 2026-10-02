@@ -194,8 +194,8 @@ Partial staging is rejected, because a staged file with unstaged changes cannot
 be checked honestly. Hooks are bypassable, so CI stays authoritative. See
 [releasing](RELEASING.md) for the publish flow.
 
-[`PDR.md`](PDR.md) and [`ROADMAP.md`](ROADMAP.md) record design intent and are
-not a description of what ships today.
+[`PDR.md`](PDR.md) records design intent and is not a description of what ships
+today.
 
 ## License
 

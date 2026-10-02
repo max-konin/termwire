@@ -1,11 +1,11 @@
 ---
 name: interview
-description: Confirm the user intent before design, planning, or code. Use when a request, roadmap item, or issue leaves success criteria, scope, edge cases, or compatibility unclear.
+description: Confirm the user intent before design, planning, or code. Use when a request or issue leaves success criteria, scope, edge cases, or compatibility unclear.
 ---
 
 # Interview
 
-Read first and ask only what code, `AGENTS.md`, tests, and the selected roadmap scope cannot answer. Never run this in a non-interactive session.
+Read first and ask only what code, `AGENTS.md`, tests, and the agreed scope cannot answer. Never run this in a non-interactive session.
 
 State an honest hypothesis before questions:
 

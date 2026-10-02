@@ -1,5 +1,5 @@
 ---
-description: Develop a roadmap stage or request end to end: explore, interview, design, plan, implement with TDD, verify, review, and walkthrough.
+description: Develop a request end to end: explore, interview, design, plan, implement with TDD, verify, review, and walkthrough.
 agent: build
 ---
 
@@ -21,7 +21,7 @@ If the argument is a path to `.opencode/work/<slug>/plan.md`, read it in full an
 
 ## 1. Resolve scope
 
-Read `ROADMAP.md` if it exists. Treat input as a roadmap selector only when it is an explicit stage number, `stage N`, `этап N`, an exact stage title, or one unique title match. Resolve a matching stage from unchecked items and acceptance criteria; ask one focused question when ambiguous. Otherwise treat all input as a free-form request.
+Treat the input as a free-form request. Read `AGENTS.md`, `PDR.md`, and the current code to bound it, and ask one focused question when the scope stays ambiguous.
 
 ## 2. Explore
 
@@ -29,7 +29,7 @@ Launch 2-3 independent `explore` helpers covering analogous features, affected p
 
 ## 3. Interview
 
-Load `interview`. Run it when code and roadmap evidence leave material scope, error, compatibility, or success questions open. Obtain an explicit yes to the restatement.
+Load `interview`. Run it when the code and the documented design intent leave material scope, error, compatibility, or success questions open. Obtain an explicit yes to the restatement.
 
 ## 4. Design
 
