@@ -13,6 +13,13 @@ checkout.
 No Neovim plugin is involved. Termwire talks to Neovim over its built-in remote
 RPC.
 
+![An agent in one tmux pane opens a file at its line in the Neovim running in the other](docs/demo.gif)
+
+Above: `termwire up demo -w` opens a workspace on its own worktree, OpenCode is
+asked where something lives, and it puts that file in front of the editor. The
+two panes come from a [layout file](#layouts); the default workspace puts the
+editor and the shell in separate windows.
+
 ```bash
 npm install -g @termwire/cli
 
