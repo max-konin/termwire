@@ -119,3 +119,80 @@ export async function newSession(exec: Exec, options: NewSessionOptions): Promis
     throw error;
   }
 }
+
+export interface SessionSummary {
+  name: string;
+  attached: boolean;
+  path: string;
+}
+
+/** The session path comes last, so a tab inside it cannot shift the other fields. */
+const sessionFormat = "#{session_name}\t#{session_attached}\t#{session_path}";
+
+export function parseSessionList(stdout: string): SessionSummary[] {
+  const sessions: SessionSummary[] = [];
+
+  for (const line of stdout.split("\n")) {
+    const fields = line.split("\t");
+    // Three fields or it is not a session row; the path keeps any tab of its own.
+    if (fields.length < 3) continue;
+
+    const [name, attached, ...path] = fields;
+    if (name.length === 0) continue;
+
+    sessions.push({ name, attached: Number(attached) > 0, path: path.join("\t") });
+  }
+
+  return sessions;
+}
+
+export async function listSessions(exec: Exec): Promise<SessionSummary[]> {
+  const command = ["tmux", "list-sessions", "-F", sessionFormat];
+  const execution = await execute(exec, command);
+
+  // No server is no sessions, not a failure. The message differs by version — "no
+  // server running on <socket>" on older tmux, "error connecting to <socket> (No such
+  // file or directory)" on 3.6 — so the exit code decides. The cost is that an
+  // unreadable socket exits 1 the same way and reads as an empty list.
+  if (execution.exitCode === 1) return [];
+  if (execution.exitCode !== 0) {
+    throw CommandError.from(command, execution);
+  }
+
+  return parseSessionList(execution.stdout);
+}
+
+/** `show-environment` prints `NAME=value` per line, and `-NAME` for a removed one. */
+export function parseEnvironment(stdout: string): Record<string, string> {
+  const environment: Record<string, string> = {};
+
+  for (const line of stdout.split("\n")) {
+    if (line.startsWith("-")) continue;
+
+    const separator = line.indexOf("=");
+    if (separator <= 0) continue;
+
+    environment[line.slice(0, separator)] = line.slice(separator + 1);
+  }
+
+  return environment;
+}
+
+export async function showEnvironment(
+  exec: Exec,
+  session: string,
+): Promise<Record<string, string>> {
+  assertNotEmpty("session", session);
+
+  const command = ["tmux", "show-environment", "-t", `=${session}`];
+  const execution = await execute(exec, command);
+
+  // Exit 1 is "no such session": it closed between being listed and being read, and a
+  // session that no longer exists has no environment rather than an error.
+  if (execution.exitCode === 1) return {};
+  if (execution.exitCode !== 0) {
+    throw CommandError.from(command, execution);
+  }
+
+  return parseEnvironment(execution.stdout);
+}

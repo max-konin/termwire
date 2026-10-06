@@ -11,6 +11,8 @@ termwire --help
 termwire --version
 termwire up dev
 termwire open src/app.ts:42
+termwire ls
+termwire down dev
 ```
 
 Workspace identity is stateless. It lives in the environment variables that
@@ -98,6 +100,70 @@ present; otherwise the worktree directory key is also the branch name. Slashes a
 Git branch names and replaced only in filesystem-safe worktree directory names. Without `-w`, Git
 is changed only when `--branch` is present. Existing tmux sessions attach without Git mutations or
 rereading/reconciling configuration.
+
+## `ls`
+
+```
+SESSION          A  BRANCH        DIRECTORY                   PROCS   RSS
+termwire-dev     *  master        ~/projects/termwire             7  1.2G
+termwire-demo       demo          ~/projects/termwire-demo        4  780M
+```
+
+One row per workspace on this machine, printed once: `ls` is not a monitor. `A`
+marks an attached session. `DIRECTORY` is where the session was created, with
+`$HOME` shortened to `~`; a directory that is gone is marked `(missing)` rather
+than fatal. `BRANCH` is the Git branch there, a short sha on a detached `HEAD`,
+or `-` outside a repository. `PROCS` and `RSS` count the processes still carrying
+`TERMWIRE_SESSION=<session>` and their resident memory, from the same scan the
+reap uses, so they cover background jobs and not just panes.
+
+A session counts as a workspace when its tmux session environment carries
+`TERMWIRE_SESSION`, never because its name looks like `<project>-<name>`. The
+user picks the name and `up` sets the label, so a session of your own is never
+listed by its name alone. Nothing is read from disk: the list comes from tmux and
+Git, so there is no state file to go stale.
+
+No workspaces prints `no termwire workspaces` and exits 0. `--json` prints the
+same rows for machines, with absolute directories and `rssKib` in KiB.
+
+## `down`
+
+```bash
+termwire down dev              # kill the workspace session
+termwire down                  # kill the workspace this shell is in
+termwire down dev -w           # and remove the worktree it sits in
+termwire down dev -w --force   # even with uncommitted changes
+```
+
+`[name]` resolves exactly as it does for `up`, so `up dev` and `down dev` always
+mean one session. `down` kills it and hunts no processes: the `session-closed`
+hook already runs the reap for exactly that session.
+
+Without a name the target is the workspace the command runs in, read from the
+inherited `TERMWIRE_SESSION`; outside a workspace it fails with `not inside a
+termwire workspace`. Inside a **worktree** workspace this bare form is the only
+one that works: there the Git root is the worktree itself, so `down <name>` would
+build `<worktree>-<name>` and find no such session.
+
+`-w` removes the worktree the session was created in, as tmux reports it, and
+refuses the main checkout, the directory you are standing in, and a worktree
+holding uncommitted changes unless `--force` is given. A refusal removes nothing
+at all, the session included. The branch is never deleted: a branch outlives its
+workspace.
+
+Ignored files are not uncommitted changes, so a worktree carrying only `.env` or
+`node_modules` counts as clean and `git worktree remove` deletes them with it. A
+symlinked `.env` is unlinked, leaving the file it points at alone; a real copy is
+gone for good, because Git never had it.
+
+Tearing down **your own** workspace with `-w` inverts the order: the worktree is
+removed first and the session killed last. The kill takes this process with it,
+so a removal after it would never run, and a spawn from a deleted working
+directory fails — the command steps out of the worktree before removing it. The
+usual refusal to remove the directory it runs in does not apply here, because the
+shell standing there dies with the session a moment later.
+
+An unknown session fails with `no workspace session named <project>-<name>`.
 
 ## Session cleanup
 

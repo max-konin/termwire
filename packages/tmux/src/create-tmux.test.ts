@@ -24,6 +24,8 @@ describe("createTmux", () => {
     const tmux = createTmux({ exec });
 
     expect(tmux.hasSession).toBeFunction();
+    expect(tmux.listSessions).toBeFunction();
+    expect(tmux.showEnvironment).toBeFunction();
     expect(tmux.newSession).toBeFunction();
     expect(tmux.newWindow).toBeFunction();
     expect(tmux.setEnvironment).toBeFunction();
@@ -40,6 +42,23 @@ describe("createTmux", () => {
     expect(calls).toEqual([
       ["tmux", "has-session", "-t", "=project"],
       ["tmux", "select-layout", "-t", "@2", "tiled"],
+    ]);
+  });
+
+  test("binds the listing and environment readers to its executor", async () => {
+    const exec = mock(async (..._args: Parameters<Exec>) => ({
+      exitCode: 0,
+      stdout: "demo\t1\t/repo\n",
+      stderr: "",
+    }));
+    const tmux = createTmux({ exec });
+
+    expect(await tmux.listSessions()).toEqual([{ name: "demo", attached: true, path: "/repo" }]);
+    await tmux.showEnvironment("demo");
+
+    expect(exec.mock.calls).toEqual([
+      [["tmux", "list-sessions", "-F", "#{session_name}\t#{session_attached}\t#{session_path}"]],
+      [["tmux", "show-environment", "-t", "=demo"]],
     ]);
   });
 

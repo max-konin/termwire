@@ -6,10 +6,11 @@ import { prepareBranch } from "./branch.js";
 import { configHome, createConfigLoader, globalConfigPath } from "./config-loader.js";
 import { resolveLayout } from "./config-validation.js";
 import { writeConfigFile } from "./config-writer.js";
+import { type DownRequest, type DownResult, down } from "./down.js";
 import { type InstallRequest, type InstallResult, install, noLayout } from "./install.js";
 import { createLayout } from "./layout.js";
 import { type OpenRequest, type OpenResult, open } from "./open.js";
-import { createProcessScanner } from "./process-scan.js";
+import { toSingleSession } from "./process-scan.js";
 import {
   formatReapFailure,
   formatReapReport,
@@ -22,7 +23,13 @@ import type { CliRuntime, RuntimeFileSystem } from "./runtime.js";
 import { skillSourcePath } from "./skill.js";
 import { layoutTemplateIds } from "./templates.js";
 import { type UpRequest, up } from "./up.js";
-import { findGitRoot, prepareWorktree } from "./worktree.js";
+import {
+  collectWorkspaces,
+  formatWorkspacesJson,
+  formatWorkspaceTable,
+  type Workspace,
+} from "./workspaces.js";
+import { findGitRoot, inspectWorktree, prepareWorktree, removeWorktree } from "./worktree.js";
 
 /**
  * Read at runtime rather than baked in at build time, the way `@termwire/mcp`
@@ -36,9 +43,13 @@ const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.
 
 export interface ProgramDependencies {
   up: (request: UpRequest) => Promise<void>;
+  ls: () => Promise<Workspace[]>;
+  down: (request: DownRequest) => Promise<DownResult>;
   open: (request: OpenRequest) => Promise<OpenResult>;
   reap: (session: string) => Promise<void>;
   install: (request: InstallRequest) => Promise<InstallResult>;
+  /** Only the table shortens `$HOME` to `~`; the JSON rows keep absolute paths. */
+  homedir: () => string;
   writeError: (message: string) => void;
   writeOutput: (message: string) => void;
 }
@@ -111,6 +122,37 @@ function resolveScriptPath(scriptPath: string | undefined): string {
   return resolvePath(scriptPath);
 }
 
+export function createLs({ fs, git, tmux, createScanner }: CliRuntime): () => Promise<Workspace[]> {
+  return () =>
+    collectWorkspaces({
+      listSessions: () => tmux.listSessions(),
+      showEnvironment: (session) => tmux.showEnvironment(session),
+      git,
+      pathExists: fs.exists,
+      // Built per run, not while the program is composed: an unsupported platform
+      // has to fail `ls` alone, not every command.
+      scan: createScanner(),
+    });
+}
+
+export function createDown({
+  host,
+  git,
+  tmux,
+}: CliRuntime): (request: DownRequest) => Promise<DownResult> {
+  return (request) =>
+    down(request, {
+      cwd: host.cwd,
+      chdir: host.chdir,
+      env: host.env,
+      findGitRoot: (directory) => findGitRoot(git, directory),
+      listSessions: () => tmux.listSessions(),
+      killSession: (session) => tmux.killSession(session),
+      inspectWorktree: (path) => inspectWorktree(git, path),
+      removeWorktree: (path, options) => removeWorktree(git, path, options),
+    });
+}
+
 export function createOpen({
   host,
   nvim,
@@ -119,7 +161,11 @@ export function createOpen({
   return (request) => open(request, { cwd: host.cwd, env: host.env, nvim, tmux });
 }
 
-export function createReap({ fs, host, exec }: CliRuntime): (session: string) => Promise<void> {
+export function createReap({
+  fs,
+  host,
+  createScanner,
+}: CliRuntime): (session: string) => Promise<void> {
   const record = (line: string) =>
     appendQuietly(reapLogPath({ env: host.env, homedir: host.homedir }), line, fs);
 
@@ -127,13 +173,7 @@ export function createReap({ fs, host, exec }: CliRuntime): (session: string) =>
     try {
       const serverPid = parseTmuxServerPid(host.env.TMUX);
       const report = await reapSession(session, {
-        scan: createProcessScanner({
-          platform: host.platform,
-          exec,
-          uid: host.uid,
-          readdir: fs.readdir,
-          readFile: fs.readFile,
-        }),
+        scan: toSingleSession(createScanner()),
         kill: host.kill,
         wait: host.wait,
         selfPid: host.pid,
@@ -191,9 +231,12 @@ export function createInstall({
 export function createCommands(runtime: CliRuntime): ProgramDependencies {
   return {
     up: createUp(runtime),
+    ls: createLs(runtime),
+    down: createDown(runtime),
     open: createOpen(runtime),
     reap: createReap(runtime),
     install: createInstall(runtime),
+    homedir: runtime.host.homedir,
     writeError: runtime.host.writeError,
     writeOutput: runtime.host.writeOutput,
   };
@@ -236,6 +279,62 @@ Branch and worktree selection:
         ...(options.worktree === undefined ? {} : { worktree: options.worktree }),
         ...(options.branch === undefined ? {} : { branch: options.branch }),
       });
+    });
+
+  program
+    .command("ls")
+    .description("list the termwire workspaces on this machine")
+    .option("--json", "print the same rows as JSON, with absolute directories")
+    .addHelpText(
+      "after",
+      `
+Columns:
+  A marks an attached session, and DIRECTORY is where it was created, $HOME as ~.
+  BRANCH is the Git branch there, a short sha on a detached HEAD, - outside a repository.
+  PROCS and RSS count every process still labeled with the session, pane or not.
+  A workspace whose directory is gone is listed and marked, never fatal.
+  A session is a workspace only when its tmux environment carries TERMWIRE_SESSION.
+`,
+    )
+    .action(async (options: { json?: true }) => {
+      const workspaces = await dependencies.ls();
+
+      dependencies.writeOutput(
+        options.json === true
+          ? formatWorkspacesJson(workspaces)
+          : formatWorkspaceTable(workspaces, dependencies.homedir()),
+      );
+    });
+
+  program
+    .command("down [name]")
+    .description("kill a workspace tmux session, this one when [name] is omitted")
+    .option("-w, --worktree", "also remove that workspace's Git worktree")
+    .option("-f, --force", "with -w, remove a worktree that has uncommitted changes")
+    .addHelpText(
+      "after",
+      `
+Teardown:
+  [name] resolves exactly as it does for up, so down names the session up created.
+  Without it the target is the workspace this command runs in, from TERMWIRE_SESSION.
+  That bare form is the only one that works inside a worktree, where the Git root moves.
+  Closing the session kills what ran in it; the branch always outlives the workspace.
+  -w also removes the worktree the session sits in, refusing the main checkout.
+  A worktree with uncommitted changes, or the directory you stand in, is refused too.
+  Tearing down your own workspace removes its worktree first: the kill ends this process.
+`,
+    )
+    .action(async (name: string | undefined, options: { worktree?: true; force?: true }) => {
+      const result = await dependencies.down({
+        ...(name === undefined ? {} : { name }),
+        ...(options.worktree === undefined ? {} : { worktree: true }),
+        ...(options.force === undefined ? {} : { force: true }),
+      });
+
+      dependencies.writeOutput(`Killed session ${result.session}\n`);
+      if (result.worktree !== undefined) {
+        dependencies.writeOutput(`Removed worktree ${result.worktree}\n`);
+      }
     });
 
   program

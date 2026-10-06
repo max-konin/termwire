@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test";
 import { fileURLToPath } from "node:url";
 import packageJson from "../package.json";
-import type { Exec, ExecOptions } from "./exec.js";
+import { type Exec, type ExecOptions, spawnCapture } from "./exec.js";
 import { createCommands, run, runCommands } from "./program.js";
-import { createAdapters, createNodeRuntime } from "./runtime.js";
+import { createAdapters, createNodeRuntime, createPlatformScanner } from "./runtime.js";
 
-test("hands out an exec that can give the child the terminal", async () => {
+test("spawns with an exec that can give the child the terminal", async () => {
   // `tmux attach-session` fails with "open terminal failed" unless the option
   // survives the seam, and a one-parameter exec drops it without a type error.
-  const { exec } = createNodeRuntime();
+  const exec = spawnCapture;
 
   expect(await exec(["sh", "-c", "echo captured"])).toMatchObject({
     exitCode: 0,
@@ -52,7 +52,6 @@ test("binds the process state the commands read", () => {
   const { host } = createNodeRuntime();
 
   expect(host).toMatchObject({
-    platform: process.platform,
     pid: process.pid,
     execPath: process.execPath,
     env: process.env,
@@ -60,6 +59,18 @@ test("binds the process state the commands read", () => {
   expect(host.cwd()).toBe(process.cwd());
   expect(host.homedir()).toMatch(/^\//);
   expect(host.now().getTime()).toBeCloseTo(Date.now(), -4);
+});
+
+test("picks a scanner for this platform, and says so when there is none", () => {
+  // Lazy on purpose: an unsupported platform must fail the commands that scan,
+  // not `--help` and not `up`.
+  expect(createNodeRuntime().createScanner()).toBeFunction();
+  expect(() => createPlatformScanner("plan9")).toThrow(
+    "process scanning is not supported on plan9",
+  );
+  for (const platform of ["darwin", "linux"]) {
+    expect(createPlatformScanner(platform)).toBeFunction();
+  }
 });
 
 test("reports a missing process rather than throwing", () => {

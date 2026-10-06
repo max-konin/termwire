@@ -26,6 +26,8 @@ npm install -g @termwire/cli
 termwire up dev                 # workspace in the current directory
 termwire up fix/login -w        # workspace in a sibling worktree on that branch
 termwire open src/app.ts:42     # jump the editor to that line
+termwire ls                     # what is running where
+termwire down fix/login -w      # tear it down, worktree included
 ```
 
 ## Requirements
@@ -66,7 +68,8 @@ Every process in the workspace inherits three variables:
 | `TERMWIRE_EDITOR_PANE` | tmux pane id of the editor pane |
 
 This is the whole of Termwire's state. Nothing is written to disk, so there is
-no state file to go stale and no cleanup step beyond `tmux kill-session` and
+no state file to go stale: `termwire ls` derives the list of workspaces from tmux
+and Git, and `termwire down` is `tmux kill-session` plus, on request,
 `git worktree remove`.
 
 `up` also installs one global tmux `session-closed` hook, so closing a session
@@ -93,6 +96,27 @@ The session name always decides the tmux identity. A bare `-w` derives the
 worktree directory and the branch from the session name. Slashes survive in Git
 branch names and are replaced only in directory names. Attaching to an existing
 session never touches Git.
+
+## Listing and tearing down
+
+```
+$ termwire ls
+SESSION          A  BRANCH        DIRECTORY                   PROCS   RSS
+termwire-dev     *  master        ~/projects/termwire             7  1.2G
+termwire-demo       demo          ~/projects/termwire-demo        4  780M
+```
+
+One row per workspace, printed once and then done. `A` marks an attached session,
+and `PROCS` and `RSS` count the processes still labeled with that session, so a
+background agent job shows up as well as a pane. A session is a workspace only
+when its tmux environment carries `TERMWIRE_SESSION`, so a session of your own
+with a similar name is never listed. `--json` prints the same rows for machines.
+
+`termwire down <name>` kills that workspace's session, and a bare `termwire down`
+inside a workspace kills that one — which is how a worktree workspace is torn
+down from the inside. `-w` also removes the worktree the session sits in. A
+worktree with uncommitted changes is refused unless `--force` is given, and so is
+the main checkout. The branch always outlives the workspace.
 
 ## Opening files from an agent
 
@@ -172,7 +196,7 @@ a layout cookbook.
 
 | Package | What it is |
 | --- | --- |
-| [`@termwire/cli`](packages/cli/README.md) | the `termwire` command: `up` and `open` |
+| [`@termwire/cli`](packages/cli/README.md) | the `termwire` command: `up`, `ls`, `down` and `open` |
 | [`@termwire/mcp`](packages/mcp/README.md) | MCP server exposing `termwire_open` |
 | [`@termwire/opencode-plugin`](packages/opencode-plugin/README.md) | native OpenCode tool |
 | [`@termwire/tmux`](packages/tmux/README.md) | typed tmux adapter |
