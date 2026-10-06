@@ -74,12 +74,16 @@ The main entry point. Workspace identity is **stateless**: it is derived at `up`
 time and carried in environment variables, never written to disk. Optional JSONC
 files declare a layout, and only when a new session is created.
 
-It owns two commands.
+It owns the workspace lifecycle and file opening.
 
 ```bash
 termwire up <name>                       # create or attach to <project>-<name>
 termwire up <name> -w [wt-name]          # use a Git worktree
 termwire up <name> -b <branch>           # select the exact branch
+termwire ls                              # list the workspaces on this machine
+termwire ls --json                       # the same rows for machines
+termwire down [name]                     # kill that workspace's session, or this one
+termwire down [name] -w [--force]        # and remove its worktree
 termwire open <path>[:line]              # open a file in the workspace editor
 termwire open <path> --line <number>     # same, keeping the path verbatim
 ```
@@ -134,8 +138,8 @@ workspace environment:
 | `TERMWIRE_EDITOR_PANE` | tmux pane id of the editor pane |
 
 Those three variables are the whole of Termwire's state. There is no state file
-to go stale, and no cleanup beyond `tmux kill-session` and `git worktree
-remove`.
+to go stale: `ls` derives the list of workspaces from tmux and Git, and `down` is
+`tmux kill-session` plus, on request, `git worktree remove`.
 
 No agent starts automatically. The user starts one in a shell pane, declares it
 as a pane command in a layout, or reshapes the workspace with ordinary tmux
@@ -156,7 +160,28 @@ A matching registered worktree is safely reused and conflicts fail clearly.
 also the branch name. Slashes survive in branch names and are replaced only in
 directory names. Without `-w`, Git changes only when `--branch` is present.
 
-Removing a worktree stays manual.
+### Workspace listing and teardown
+
+`termwire ls` lists the workspaces on this machine, one row each: the session, an
+attached marker, the Git branch and directory, and the processes and resident
+memory still labeled with the session. A session counts as a workspace when its
+tmux session environment carries `TERMWIRE_SESSION`, never because its name looks
+like `<project>-<name>`: the user picks the name and `up` sets the label. Identity
+therefore stays stateless, with no file to go stale. A workspace whose directory
+is gone is listed and marked. No workspaces is not an error.
+
+`termwire down <name>` resolves the name exactly as `up` does and kills that tmux
+session; the `session-closed` hook reaps what ran in it. Without a name the target
+is the workspace the command runs in, named by the inherited `TERMWIRE_SESSION` —
+the same environment-based identity `open` relies on, and the only form that works
+inside a worktree workspace, where the Git root is the worktree.
+
+With `-w` it also removes the worktree the session sits in, refusing the main
+checkout, uncommitted changes unless `--force` is given, and the directory it is
+running in — unless that directory belongs to the workspace being torn down, whose
+shell dies with the session a moment later. Its own workspace also inverts the
+order: the worktree goes first and the kill last, because the kill ends this
+process. The branch is never deleted: a branch outlives its workspace.
 
 ### Opening a file
 
@@ -212,7 +237,6 @@ failure triggers best-effort cleanup that preserves the original error.
 
 Not planned, and not allowed to shape the current architecture.
 
-- `termwire down`, `termwire ls`, and worktree cleanup
 - `termwire doctor` and `termwire status`
 - Additional configuration sources or options
 - Telescope and fzf integration

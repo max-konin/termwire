@@ -3,11 +3,16 @@ import { readFileSync } from "node:fs";
 import type { createNvim as createNvimAdapter } from "@termwire/nvim";
 import type { createTmux as createTmuxAdapter } from "@termwire/tmux";
 import packageJson from "../package.json";
+import type { DownRequest, DownResult } from "./down.js";
 import type { Exec } from "./exec.js";
 import type { InstallPrompter, InstallRequest, InstallResult } from "./install.js";
 import type { OpenRequest, OpenResult } from "./open.js";
+import type { SessionScanner } from "./process-scan.js";
+import { createDarwinScanner } from "./process-scan-darwin.js";
 import {
+  createDown,
   createInstall,
+  createLs,
   createOpen,
   createProgram,
   createReap,
@@ -21,7 +26,11 @@ import { createReapHookCommand } from "./reap-hook.js";
 import type { CliRuntime, RuntimeFileSystem, RuntimeHost } from "./runtime.js";
 import { executeGit } from "./runtime.js";
 import type { UpRequest } from "./up.js";
+import type { Workspace } from "./workspaces.js";
 import type { GitExec } from "./worktree.js";
+
+type TmuxAdapter = ReturnType<typeof createTmuxAdapter>;
+type NvimAdapter = ReturnType<typeof createNvimAdapter>;
 
 function createInstallStub(result: Partial<InstallResult> = {}) {
   return mock<(request: InstallRequest) => Promise<InstallResult>>().mockResolvedValue({
@@ -36,9 +45,14 @@ function createInstallStub(result: Partial<InstallResult> = {}) {
 function createCommandStubs(overrides: Partial<ProgramDependencies> = {}): ProgramDependencies {
   return {
     up: mock<(request: UpRequest) => Promise<void>>().mockResolvedValue(),
+    ls: mock<() => Promise<Workspace[]>>().mockResolvedValue([]),
+    down: mock<(request: DownRequest) => Promise<DownResult>>().mockResolvedValue({
+      session: "repo-dev",
+    }),
     open: createOpenStub(),
     reap: createReapStub(),
     install: createInstallStub(),
+    homedir: () => "/home/user",
     writeError: mock<(message: string) => void>(),
     writeOutput: mock<(message: string) => void>(),
     ...overrides,
@@ -49,17 +63,18 @@ function createTestRuntime(
   overrides: {
     fs?: Partial<RuntimeFileSystem>;
     host?: Partial<RuntimeHost>;
+    /** Feeds the real darwin scanner, so `ps` parsing stays covered through a runtime. */
     exec?: Exec;
+    createScanner?: () => SessionScanner;
     git?: GitExec;
-    tmux?: ReturnType<typeof createTmuxAdapter>;
-    nvim?: ReturnType<typeof createNvimAdapter>;
+    tmux?: TmuxAdapter;
+    nvim?: NvimAdapter;
     createPrompter?: () => Promise<InstallPrompter>;
   } = {},
 ): CliRuntime {
   return {
     fs: {
       readFile: async () => "",
-      readdir: async () => [],
       exists: async () => false,
       mkdir: async () => {},
       writeFile: async () => {},
@@ -71,9 +86,8 @@ function createTestRuntime(
     host: {
       env: {},
       cwd: () => "/repo",
+      chdir: () => {},
       homedir: () => "/home/user",
-      platform: "darwin",
-      uid: 501,
       pid: 4242,
       execPath: "/usr/local/bin/node",
       scriptPath: "/opt/termwire/bin/termwire.js",
@@ -86,10 +100,16 @@ function createTestRuntime(
       writeError: () => {},
       ...overrides.host,
     },
-    exec: overrides.exec ?? (async () => ({ exitCode: 0, stdout: "", stderr: "" })),
     git: overrides.git ?? (async () => ({ exitCode: 0, stdout: "", stderr: "" })),
-    tmux: overrides.tmux ?? ({} as ReturnType<typeof createTmuxAdapter>),
-    nvim: overrides.nvim ?? ({} as ReturnType<typeof createNvimAdapter>),
+    createScanner:
+      overrides.createScanner ??
+      (() =>
+        createDarwinScanner({
+          exec: overrides.exec ?? (async () => ({ exitCode: 0, stdout: "", stderr: "" })),
+          uid: 501,
+        })),
+    tmux: overrides.tmux ?? ({} as TmuxAdapter),
+    nvim: overrides.nvim ?? ({} as NvimAdapter),
     createPrompter:
       overrides.createPrompter ??
       (async () => {
@@ -243,7 +263,7 @@ test("does not read config files when attaching an existing runtime session", as
   const readFile = mock<(path: string) => Promise<string>>().mockResolvedValue('{ "version": 1 }');
   const runtimeUp = createUp(
     createTestRuntime({
-      tmux: { hasSession, attach } as unknown as ReturnType<typeof createTmuxAdapter>,
+      tmux: { hasSession, attach } as unknown as TmuxAdapter,
       host: { env: { XDG_CONFIG_HOME: "/xdg" } },
       fs: { readFile, exists: pathExists },
       git: mock<GitExec>().mockResolvedValue({ exitCode: 0, stdout: "/repo\n", stderr: "" }),
@@ -274,7 +294,7 @@ test("reads global then project config for a new runtime session", async () => {
     selectWindow: mock<() => Promise<void>>().mockResolvedValue(),
     selectPane: mock<() => Promise<void>>().mockResolvedValue(),
     attach: mock<() => Promise<void>>().mockResolvedValue(),
-  } as unknown as ReturnType<typeof createTmuxAdapter>;
+  } as unknown as TmuxAdapter;
   const readFile = mock<(path: string) => Promise<string>>().mockResolvedValue(
     '// config\n{ "version": 1, }',
   );
@@ -295,7 +315,7 @@ test("reads global then project config for a new runtime session", async () => {
 test("wires runtime requests through Git discovery and existing-session attach", async () => {
   const hasSession = mock<(session: string) => Promise<boolean>>().mockResolvedValue(true);
   const attach = mock<(session: string) => Promise<void>>().mockResolvedValue();
-  const tmux = { hasSession, attach } as unknown as ReturnType<typeof createTmuxAdapter>;
+  const tmux = { hasSession, attach } as unknown as TmuxAdapter;
   const gitExec = mock<GitExec>().mockResolvedValue({
     exitCode: 0,
     stdout: "/repo\n",
@@ -336,7 +356,7 @@ test("wires runtime branch preparation before creating a new session", async () 
     selectWindow: mock<() => Promise<void>>().mockResolvedValue(),
     selectPane: mock<() => Promise<void>>().mockResolvedValue(),
     attach: mock<() => Promise<void>>().mockResolvedValue(),
-  } as unknown as ReturnType<typeof createTmuxAdapter>;
+  } as unknown as TmuxAdapter;
   const gitExec = mock<GitExec>().mockImplementation(async (argv) => {
     if (argv.join(" ") === "git rev-parse --show-toplevel") {
       return { exitCode: 0, stdout: "/repo\n", stderr: "" };
@@ -520,8 +540,8 @@ test("wires runtime open through the injected adapters and environment", async (
 
   const runtimeOpen = createOpen(
     createTestRuntime({
-      nvim: { isRunning, openFile } as unknown as ReturnType<typeof createNvimAdapter>,
-      tmux: { selectWindow, selectPane } as unknown as ReturnType<typeof createTmuxAdapter>,
+      nvim: { isRunning, openFile } as unknown as NvimAdapter,
+      tmux: { selectWindow, selectPane } as unknown as TmuxAdapter,
       host: {
         env: { TERMWIRE_SOCKET: "/tmp/termwire/repo-dev.sock", TERMWIRE_EDITOR_PANE: "%3" },
       },
@@ -582,7 +602,7 @@ test("installs the cleanup hook with absolute runtime paths", async () => {
     attach: mock<() => Promise<void>>().mockResolvedValue(),
     showHooks,
     setHook,
-  } as unknown as ReturnType<typeof createTmuxAdapter>;
+  } as unknown as TmuxAdapter;
   const warn = mock<(message: string) => void>();
 
   const runtimeUp = createUp(
@@ -621,7 +641,7 @@ test.each([
     attach: mock<() => Promise<void>>().mockResolvedValue(),
     showHooks: mock<() => Promise<never[]>>().mockRejectedValue(new Error("no server")),
     setHook: mock<(options: unknown) => Promise<void>>().mockResolvedValue(),
-  } as unknown as ReturnType<typeof createTmuxAdapter>;
+  } as unknown as TmuxAdapter;
   const warn = mock<(message: string) => void>();
 
   const runtimeUp = createUp(
@@ -646,7 +666,7 @@ test("reports what a runtime reap killed in the log", async () => {
     argv.includes("-Eww")
       ? {
           exitCode: 0,
-          stdout: " 900 1 /usr/local/bin/node /repo/dev.js TERMWIRE_SESSION=repo-dev\n",
+          stdout: " 900 1 204800 /usr/local/bin/node /repo/dev.js TERMWIRE_SESSION=repo-dev\n",
           stderr: "",
         }
       : { exitCode: 0, stdout: " 900 /usr/local/bin/node /repo/dev.js\n", stderr: "" },
@@ -674,8 +694,8 @@ test("never kills the tmux server named by TMUX, even when it carries the label"
   const appendFile = mock<(path: string, contents: string) => Promise<void>>().mockResolvedValue();
   const kill = mock<(pid: number, signal: ReapSignal) => KillOutcome>().mockReturnValue("gone");
   const listing =
-    " 700 1 tmux new-session -d -s repo-dev TERMWIRE_SESSION=repo-dev\n" +
-    " 900 1 /usr/local/bin/node /repo/dev.js TERMWIRE_SESSION=repo-dev\n";
+    " 700 1 8192 tmux new-session -d -s repo-dev TERMWIRE_SESSION=repo-dev\n" +
+    " 900 1 204800 /usr/local/bin/node /repo/dev.js TERMWIRE_SESSION=repo-dev\n";
   const exec = mock<Exec>(async (argv) =>
     argv.includes("-Eww")
       ? { exitCode: 0, stdout: listing, stderr: "" }
@@ -710,7 +730,11 @@ test("records a failed runtime reap and reports it as a command failure", async 
   const reap = createReap(
     createTestRuntime({
       fs: { appendFile },
-      host: { env: { XDG_STATE_HOME: "/state" }, platform: "plan9" },
+      host: { env: { XDG_STATE_HOME: "/state" } },
+      // What `createPlatformScanner` throws there; the runtime owns that choice now.
+      createScanner: () => {
+        throw new Error("process scanning is not supported on plan9");
+      },
     }),
   );
 
@@ -861,4 +885,269 @@ test("skips the prompter when --yes answers everything", async () => {
   )({ yes: true, layout: "none" });
 
   expect(createPrompter).not.toHaveBeenCalled();
+});
+
+const workspaceRow: Workspace = {
+  session: "repo-dev",
+  attached: true,
+  branch: "master",
+  directory: "/home/user/projects/repo",
+  missing: false,
+  procs: 7,
+  rssKib: 1258291,
+};
+
+test("prints the workspace table with $HOME shortened", async () => {
+  const writeOutput = mock<(message: string) => void>();
+
+  expect(
+    await runCommands(
+      ["ls"],
+      createCommandStubs({
+        ls: mock<() => Promise<Workspace[]>>().mockResolvedValue([workspaceRow]),
+        homedir: () => "/home/user",
+        writeOutput,
+      }),
+    ),
+  ).toBe(0);
+
+  expect(writeOutput.mock.calls.flat().join("")).toBe(
+    "SESSION   A  BRANCH  DIRECTORY        PROCS   RSS\nrepo-dev  *  master  ~/projects/repo      7  1.2G\n",
+  );
+});
+
+test("prints the same rows as JSON for --json", async () => {
+  const writeOutput = mock<(message: string) => void>();
+
+  expect(
+    await runCommands(
+      ["ls", "--json"],
+      createCommandStubs({
+        ls: mock<() => Promise<Workspace[]>>().mockResolvedValue([workspaceRow]),
+        writeOutput,
+      }),
+    ),
+  ).toBe(0);
+
+  expect(JSON.parse(writeOutput.mock.calls.flat().join(""))).toEqual([workspaceRow]);
+});
+
+test("reports no workspaces without failing", async () => {
+  const writeOutput = mock<(message: string) => void>();
+  const writeError = mock<(message: string) => void>();
+
+  expect(await runCommands(["ls"], createCommandStubs({ writeOutput, writeError }))).toBe(0);
+
+  expect(writeOutput).toHaveBeenCalledWith("no termwire workspaces\n");
+  expect(writeError).not.toHaveBeenCalled();
+});
+
+test("composes ls from the runtime: labeled sessions, Git, and the process scan", async () => {
+  const listSessions = mock<TmuxAdapter["listSessions"]>().mockResolvedValue([
+    { name: "repo-dev", attached: true, path: "/home/user/projects/repo" },
+    { name: "repo-plain", attached: false, path: "/home/user/projects/repo" },
+  ]);
+  const showEnvironment = mock<(session: string) => Promise<Record<string, string>>>(
+    async (session): Promise<Record<string, string>> =>
+      session === "repo-dev" ? { TERMWIRE_SESSION: "repo-dev" } : {},
+  );
+  const exec = mock<Exec>(async (argv) =>
+    argv.includes("-Eww")
+      ? {
+          exitCode: 0,
+          stdout: " 900 1 204800 /usr/local/bin/node /repo/dev.js TERMWIRE_SESSION=repo-dev\n",
+          stderr: "",
+        }
+      : { exitCode: 0, stdout: " 900 /usr/local/bin/node /repo/dev.js\n", stderr: "" },
+  );
+
+  const runtimeLs = createLs(
+    createTestRuntime({
+      tmux: { listSessions, showEnvironment } as unknown as TmuxAdapter,
+      git: mock<GitExec>().mockResolvedValue({ exitCode: 0, stdout: "master\n", stderr: "" }),
+      fs: { exists: async () => true },
+      exec,
+    }),
+  );
+
+  expect(await runtimeLs()).toEqual([
+    {
+      session: "repo-dev",
+      attached: true,
+      branch: "master",
+      directory: "/home/user/projects/repo",
+      missing: false,
+      procs: 1,
+      rssKib: 204800,
+    },
+  ]);
+});
+
+test.each([
+  [["down"], {}],
+  [["down", "-w"], { worktree: true }],
+  [["down", "dev"], { name: "dev" }],
+  [["down", "dev", "-w"], { name: "dev", worktree: true }],
+  [["down", "dev", "--worktree"], { name: "dev", worktree: true }],
+  [["down", "dev", "-w", "--force"], { name: "dev", worktree: true, force: true }],
+  [["down", "dev", "-wf"], { name: "dev", worktree: true, force: true }],
+] as [string[], DownRequest][])("normalizes %p into a down request", async (argv, request) => {
+  const down = mock<(request: DownRequest) => Promise<DownResult>>().mockResolvedValue({
+    session: "repo-dev",
+  });
+  const writeError = mock<(message: string) => void>();
+
+  expect(await runCommands(argv, createCommandStubs({ down, writeError }))).toBe(0);
+
+  expect(down).toHaveBeenCalledWith(request);
+  expect(writeError).not.toHaveBeenCalled();
+});
+
+test.each([
+  [{ session: "repo-dev" }, ["Killed session repo-dev\n"]],
+  [
+    { session: "repo-dev", worktree: "/home/user/projects/repo-dev" },
+    ["Killed session repo-dev\n", "Removed worktree /home/user/projects/repo-dev\n"],
+  ],
+] as [DownResult, string[]][])("reports %p on stdout", async (result, expected) => {
+  const writeOutput = mock<(message: string) => void>();
+
+  expect(
+    await runCommands(
+      ["down", "dev"],
+      createCommandStubs({
+        down: mock<(request: DownRequest) => Promise<DownResult>>().mockResolvedValue(result),
+        writeOutput,
+      }),
+    ),
+  ).toBe(0);
+
+  expect(writeOutput.mock.calls.flat()).toEqual(expected);
+});
+
+test("presents an unknown session without a stack trace", async () => {
+  const writeError = mock<(message: string) => void>();
+
+  expect(
+    await runCommands(
+      ["down", "dev"],
+      createCommandStubs({
+        down: mock<(request: DownRequest) => Promise<DownResult>>().mockRejectedValue(
+          new Error("no workspace session named repo-dev"),
+        ),
+        writeError,
+      }),
+    ),
+  ).toBe(1);
+
+  expect(writeError).toHaveBeenCalledWith("termwire: no workspace session named repo-dev\n");
+});
+
+test("composes a bare down from the runtime: the inherited label names the session", async () => {
+  const listSessions = mock<TmuxAdapter["listSessions"]>().mockResolvedValue([
+    { name: "repo-dev", attached: true, path: "/home/user/projects/repo" },
+  ]);
+  const killSession = mock<(session: string) => Promise<void>>().mockResolvedValue();
+  const git = mock<GitExec>();
+
+  const runtimeDown = createDown(
+    createTestRuntime({
+      tmux: { listSessions, killSession } as unknown as TmuxAdapter,
+      git,
+      host: { env: { TERMWIRE_SESSION: "repo-dev" } },
+    }),
+  );
+
+  expect(await runtimeDown({})).toEqual({ session: "repo-dev" });
+
+  expect(killSession).toHaveBeenCalledWith("repo-dev");
+  expect(git).not.toHaveBeenCalled();
+});
+
+test("composes down from the runtime: kills the session and removes its worktree", async () => {
+  const listSessions = mock<TmuxAdapter["listSessions"]>().mockResolvedValue([
+    { name: "repo-dev", attached: false, path: "/home/user/projects/repo-dev" },
+  ]);
+  const killSession = mock<(session: string) => Promise<void>>().mockResolvedValue();
+  const git = mock<GitExec>(async (argv) => {
+    if (argv.includes("--show-toplevel")) {
+      return { exitCode: 0, stdout: "/repo\n", stderr: "" };
+    }
+    if (argv.includes("--absolute-git-dir")) {
+      return {
+        exitCode: 0,
+        stdout: "/repo/.git/worktrees/repo-dev\n/repo/.git\n",
+        stderr: "",
+      };
+    }
+    return { exitCode: 0, stdout: "", stderr: "" };
+  });
+
+  const runtimeDown = createDown(
+    createTestRuntime({
+      tmux: { listSessions, killSession } as unknown as TmuxAdapter,
+      git,
+    }),
+  );
+
+  expect(await runtimeDown({ name: "dev", worktree: true })).toEqual({
+    session: "repo-dev",
+    worktree: "/home/user/projects/repo-dev",
+  });
+
+  expect(killSession).toHaveBeenCalledWith("repo-dev");
+  expect(git.mock.calls.map(([argv]) => argv)).toEqual([
+    ["git", "rev-parse", "--show-toplevel"],
+    [
+      "git",
+      "-C",
+      "/home/user/projects/repo-dev",
+      "rev-parse",
+      "--absolute-git-dir",
+      "--git-common-dir",
+    ],
+    ["git", "-C", "/home/user/projects/repo-dev", "status", "--porcelain"],
+    [
+      "git",
+      "-C",
+      "/home/user/projects/repo-dev",
+      "worktree",
+      "remove",
+      "/home/user/projects/repo-dev",
+    ],
+  ]);
+});
+
+test.each([
+  [["--help"], ["ls [options]", "down [options] [name]"]],
+  [
+    ["ls", "--help"],
+    [
+      "Usage: termwire ls [options]",
+      "--json",
+      "Columns:",
+      "A marks an attached session",
+      "only when its tmux environment carries TERMWIRE_SESSION",
+    ],
+  ],
+  [
+    ["down", "--help"],
+    [
+      "Usage: termwire down [options] [name]",
+      "-w, --worktree",
+      "-f, --force",
+      "Teardown:",
+      "the workspace this command runs in, from TERMWIRE_SESSION",
+      "the branch always outlives the workspace",
+    ],
+  ],
+])("documents %p in help", async (argv, expected) => {
+  const writeOutput = mock<(message: string) => void>();
+
+  expect(await runCommands(argv, createCommandStubs({ writeOutput }))).toBe(0);
+
+  const output = writeOutput.mock.calls.flat().join("");
+  for (const value of expected) {
+    expect(output).toContain(value);
+  }
 });

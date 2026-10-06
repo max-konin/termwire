@@ -53,11 +53,23 @@
 ## Current scope and gotchas
 
 - Treat package READMEs and `PDR.md` as design intent, not implemented behavior.
-- The CLI owns `up <name>` (`-w/--worktree`, `-b/--branch`) and `open <target>` (`-l/--line`).
+- The CLI owns `up <name>` (`-w/--worktree`, `-b/--branch`), `ls` (`--json`),
+  `down [name]` (`-w/--worktree`, `-f/--force`) and `open <target>` (`-l/--line`).
   File opening also ships as the OpenCode plugin tool and the `@termwire/mcp` server; all three
   share the same behavior and read the same environment. `doctor`, `status`, `files`, `open-last`,
   and persistent workspace state are not implemented. Optional global/project JSONC files
   configure only the windows and panes created for a new session.
+- `ls` and `down` keep identity stateless: `ls` lists a session only when its tmux session
+  environment carries `TERMWIRE_SESSION`, never by matching `<project>-<name>`, and `down`
+  resolves a given name through `createIdentity` exactly as `up` does. A bare `down` targets
+  the workspace it runs in, from the inherited `TERMWIRE_SESSION`; that is the only form that
+  works inside a worktree workspace, where the Git root is the worktree and `createIdentity`
+  would build `<worktree>-<name>`. `down` never deletes a branch, and refuses the main
+  checkout, a dirty worktree without `--force`, and the directory it runs in unless that
+  is the workspace being torn down.
+- Tearing down its own session inverts `down`'s order: worktree first, kill last, and
+  `host.chdir` steps out of the worktree before it goes. The kill is a spawn, and a spawn
+  from a deleted working directory fails with ENOENT — found by running it, not by a fake.
 - `install` writes a layout template and installs the `termwire-open` skill for the agents
   that take one: `~/.claude/skills/termwire-open/SKILL.md` and
   `$XDG_CONFIG_HOME/opencode/skills/…`. Codex has no skills, so it only gets the line to add
@@ -90,6 +102,17 @@
   single helper. `node:path` is pure string work and stays allowed anywhere; two files still reach
   past the seam and are worth folding in when touched — `worktree.ts` calls `realpath` and
   `program.ts` reads its own `package.json` for `--version`.
+- Process scanning is platform-agnostic above the seam. `process-scan.ts` holds only the
+  `SessionScanner` type and the contract a platform must honour; `process-scan-darwin.ts`
+  (two `ps` passes) and `process-scan-linux.ts` (`/proc`) each take their own dependencies
+  and nothing else. `createPlatformScanner` in `runtime.ts` chooses, and `CliRuntime` hands
+  commands a `createScanner()` factory — lazy, so a platform that cannot be scanned fails
+  `ls` and `_reap` rather than `--help`. Supporting a new platform, a BSD with `ps -e` for
+  instance, is a new module plus a branch there: do not turn the choice into a registry
+  keyed by platform, because one signature would force every scanner to accept the union
+  of what all of them need. Read the contract in `process-scan.ts` first — two of its five
+  rules exist because breaking them makes the reap signal its own ancestors or log a clean
+  sweep over processes that are still running.
 - Neovim integration must use built-in remote RPC (`nvim --server <socket> --remote*`); do not add
   a Neovim plugin or `nvr`.
 - Biome uses 2 spaces, double quotes, semicolons, trailing commas, and a 100-column width.

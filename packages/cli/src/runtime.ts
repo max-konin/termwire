@@ -15,12 +15,14 @@ import { createNvim } from "@termwire/nvim";
 import { createTmux } from "@termwire/tmux";
 import { type Exec, spawnCapture } from "./exec.js";
 import type { InstallPrompter } from "./install.js";
+import type { SessionScanner } from "./process-scan.js";
+import { createDarwinScanner } from "./process-scan-darwin.js";
+import { createLinuxScanner } from "./process-scan-linux.js";
 import type { KillOutcome, ReapSignal } from "./reap.js";
 import type { GitExec } from "./worktree.js";
 
 export interface RuntimeFileSystem {
   readFile: (path: string) => Promise<string>;
-  readdir: (path: string) => Promise<string[]>;
   exists: (path: string) => Promise<boolean>;
   mkdir: (path: string) => Promise<void>;
   /** `flag: "wx"` fails on an existing file instead of replacing it. */
@@ -33,9 +35,9 @@ export interface RuntimeFileSystem {
 export interface RuntimeHost {
   env: Record<string, string | undefined>;
   cwd: () => string;
+  /** Leaves a directory before it is removed: a spawn from a deleted cwd fails. */
+  chdir: (path: string) => void;
   homedir: () => string;
-  platform: string;
-  uid: number;
   pid: number;
   execPath: string;
   /** The launched script, which the tmux hook has to name by absolute path. */
@@ -64,9 +66,12 @@ export interface RuntimeHost {
 export interface CliRuntime {
   fs: RuntimeFileSystem;
   host: RuntimeHost;
-  /** Used for anything without an adapter, currently the process scanner. */
-  exec: Exec;
   git: GitExec;
+  /**
+   * Built on demand, so a platform that cannot be scanned fails the command that
+   * scans rather than every command, `--help` included.
+   */
+  createScanner: () => SessionScanner;
   tmux: ReturnType<typeof createTmux>;
   nvim: ReturnType<typeof createNvim>;
   /** Built on demand, so a command that never asks anything loads no terminal UI. */
@@ -95,7 +100,6 @@ export function createNodeRuntime(): CliRuntime {
   return {
     fs: {
       readFile: (path) => readFileFromDisk(path, "utf8"),
-      readdir: readDirectory,
       exists: fileExists,
       mkdir: async (path) => {
         await mkdirDirectory(path, { recursive: true });
@@ -109,9 +113,8 @@ export function createNodeRuntime(): CliRuntime {
     host: {
       env,
       cwd: () => process.cwd(),
+      chdir: (path) => process.chdir(path),
       homedir: getHomeDirectory,
-      platform: process.platform,
-      uid: process.getuid?.() ?? 0,
       pid: process.pid,
       execPath: process.execPath,
       scriptPath: process.argv[1],
@@ -123,8 +126,8 @@ export function createNodeRuntime(): CliRuntime {
       writeOutput: (message) => process.stdout.write(message),
       writeError: (message) => process.stderr.write(message),
     },
-    exec: spawnCapture,
     git: executeGit,
+    createScanner: () => createPlatformScanner(process.platform),
     ...createAdapters({ exec: spawnCapture, env }),
     // Imported here and not at the top, so `up` and `open` never load the prompts.
     createPrompter: async () =>
@@ -132,6 +135,25 @@ export function createNodeRuntime(): CliRuntime {
         columns: process.stdout.columns ?? 80,
       }),
   };
+}
+
+/**
+ * The one place that knows which platforms can be scanned. A platform module takes
+ * only its own dependencies, which a registry keyed by platform could not express:
+ * every entry would have to accept the union of what all of them need. So a new
+ * platform is a new module plus a branch here.
+ */
+export function createPlatformScanner(platform: string): SessionScanner {
+  if (platform === "darwin") {
+    return createDarwinScanner({ exec: spawnCapture, uid: process.getuid?.() ?? 0 });
+  }
+  if (platform === "linux") {
+    return createLinuxScanner({
+      readdir: readDirectory,
+      readFile: (path) => readFileFromDisk(path, "utf8"),
+    });
+  }
+  throw new Error(`process scanning is not supported on ${platform}`);
 }
 
 export async function fileExists(path: string): Promise<boolean> {

@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { ProcessScan } from "./process-scan.js";
+import type { ProcessEntry, ProcessScan } from "./process-scan.js";
 import {
   formatReapFailure,
   formatReapReport,
@@ -11,14 +11,11 @@ import {
   selectTargets,
 } from "./reap.js";
 
+/** The reap only walks parents; resident memory is what `ls` reads a scan for. */
+const entry = (pid: number, ppid: number): ProcessEntry => ({ pid, ppid, rss: 0 });
+
 const scan: ProcessScan = {
-  processes: [
-    { pid: 1, ppid: 0 },
-    { pid: 100, ppid: 1 },
-    { pid: 200, ppid: 100 },
-    { pid: 300, ppid: 200 },
-    { pid: 400, ppid: 1 },
-  ],
+  processes: [entry(1, 0), entry(100, 1), entry(200, 100), entry(300, 200), entry(400, 1)],
   labeled: [100, 200, 300, 400],
 };
 
@@ -53,10 +50,7 @@ describe("selectTargets", () => {
 
   test("survives a cycle in the reported parents", () => {
     const cyclic: ProcessScan = {
-      processes: [
-        { pid: 10, ppid: 11 },
-        { pid: 11, ppid: 10 },
-      ],
+      processes: [entry(10, 11), entry(11, 10)],
       labeled: [10, 11],
     };
 
@@ -258,12 +252,12 @@ test("protects the tmux server and its ancestors from its own label", async () =
   // an ancestor of it. 400 is the server; 200 and 100 are what it came from.
   const detached: ProcessScan = {
     processes: [
-      { pid: 1, ppid: 0 },
-      { pid: 100, ppid: 1 },
-      { pid: 200, ppid: 100 },
-      { pid: 400, ppid: 200 },
-      { pid: 300, ppid: 1 },
-      { pid: 500, ppid: 1 },
+      entry(1, 0),
+      entry(100, 1),
+      entry(200, 100),
+      entry(400, 200),
+      entry(300, 1),
+      entry(500, 1),
     ],
     labeled: [100, 200, 300, 400, 500],
   };

@@ -2,7 +2,15 @@ import { attach } from "./client.js";
 import { setHook, showHooks, unsetHook } from "./hook.js";
 import { respawnPane, selectPane, sendKeys, splitPane } from "./pane.js";
 import { type Exec, spawnExec } from "./process.js";
-import { hasSession, killSession, newSession, setEnvironment, setSessionTitle } from "./session.js";
+import {
+  hasSession,
+  killSession,
+  listSessions,
+  newSession,
+  setEnvironment,
+  setSessionTitle,
+  showEnvironment,
+} from "./session.js";
 import { newWindow, selectLayout, selectWindow } from "./window.js";
 
 export interface CreateTmuxOptions {
@@ -13,6 +21,8 @@ export interface CreateTmuxOptions {
 export function createTmux({ exec = spawnExec, env = process.env }: CreateTmuxOptions = {}) {
   return {
     hasSession: (session: string) => hasSession(exec, session),
+    listSessions: () => listSessions(exec),
+    showEnvironment: (session: string) => showEnvironment(exec, session),
     newSession: (options: Parameters<typeof newSession>[1]) => newSession(exec, options),
     newWindow: (options: Parameters<typeof newWindow>[1]) => newWindow(exec, options),
     setEnvironment: (session: string, key: string, value: string) =>

@@ -1,6 +1,16 @@
 import { describe, expect, mock, test } from "bun:test";
 import { CommandError, type Exec, type ExecResult } from "./process.js";
-import { hasSession, killSession, newSession, setEnvironment, setSessionTitle } from "./session.js";
+import {
+  hasSession,
+  killSession,
+  listSessions,
+  newSession,
+  parseEnvironment,
+  parseSessionList,
+  setEnvironment,
+  setSessionTitle,
+  showEnvironment,
+} from "./session.js";
 import { ValidationError } from "./validation.js";
 
 const result = (exitCode: number, stdout = "", stderr = ""): ExecResult => ({
@@ -242,5 +252,96 @@ describe("session lifecycle", () => {
     const exec = mock(async (..._args: Parameters<Exec>) => result(2, "", "tmux failed"));
 
     await expect(action(exec)).rejects.toBeInstanceOf(CommandError);
+  });
+});
+
+describe("listSessions", () => {
+  test("asks for a tab-separated listing and reads every field", async () => {
+    const exec = mock(async (..._args: Parameters<Exec>) =>
+      result(0, "termwire-dev\t1\t/repo\ntermwire-demo\t0\t/repo-demo\n"),
+    );
+
+    expect(await listSessions(exec)).toEqual([
+      { name: "termwire-dev", attached: true, path: "/repo" },
+      { name: "termwire-demo", attached: false, path: "/repo-demo" },
+    ]);
+    expect(exec.mock.calls).toEqual([
+      [["tmux", "list-sessions", "-F", "#{session_name}\t#{session_attached}\t#{session_path}"]],
+    ]);
+  });
+
+  // Both messages are tmux's own, from different versions; only the exit code is stable.
+  test.each([
+    ["error connecting to /private/tmp/tmux-501/default (No such file or directory)"],
+    ["no server running on /tmp/tmux-501/default"],
+  ])("reads an empty list when the server is absent: %p", async (stderr) => {
+    const exec: Exec = async () => result(1, "", stderr);
+
+    expect(await listSessions(exec)).toEqual([]);
+  });
+
+  test("turns any other nonzero result into CommandError", async () => {
+    const exec: Exec = async () => result(2, "", "tmux failed");
+
+    await expect(listSessions(exec)).rejects.toBeInstanceOf(CommandError);
+  });
+});
+
+describe("parseSessionList", () => {
+  test.each([
+    ["demo\t2\t/repo", [{ name: "demo", attached: true, path: "/repo" }]],
+    ["demo\t0\t/with\ttab", [{ name: "demo", attached: false, path: "/with\ttab" }]],
+    ["", []],
+    ["   \n", []],
+    ["demo", []],
+    ["demo\t0", []],
+    ["\t0\t/repo", []],
+  ])("reads %p", (stdout, expected) => {
+    expect(parseSessionList(stdout)).toEqual(expected);
+  });
+});
+
+describe("showEnvironment", () => {
+  test("reads the session environment from an exact target", async () => {
+    const exec = mock(async (..._args: Parameters<Exec>) =>
+      result(0, "TERMWIRE_SESSION=repo-dev\nTERMWIRE_SOCKET=/tmp/termwire/repo-dev.sock\n"),
+    );
+
+    expect(await showEnvironment(exec, "repo-dev")).toEqual({
+      TERMWIRE_SESSION: "repo-dev",
+      TERMWIRE_SOCKET: "/tmp/termwire/repo-dev.sock",
+    });
+    expect(exec.mock.calls).toEqual([[["tmux", "show-environment", "-t", "=repo-dev"]]]);
+  });
+
+  test("reads an empty environment for a session that closed meanwhile", async () => {
+    const exec: Exec = async () => result(1, "", "no such session: =repo-dev");
+
+    expect(await showEnvironment(exec, "repo-dev")).toEqual({});
+  });
+
+  test("turns any other nonzero result into CommandError", async () => {
+    const exec: Exec = async () => result(2, "", "tmux failed");
+
+    await expect(showEnvironment(exec, "repo-dev")).rejects.toBeInstanceOf(CommandError);
+  });
+
+  test("rejects an empty session before execution", async () => {
+    const exec = mock(async (..._args: Parameters<Exec>) => result(0));
+
+    await expect(showEnvironment(exec, " ")).rejects.toMatchObject({ field: "session" });
+    expect(exec).not.toHaveBeenCalled();
+  });
+});
+
+describe("parseEnvironment", () => {
+  test.each([
+    ["NAME=value", { NAME: "value" }],
+    ["NAME=with=equals", { NAME: "with=equals" }],
+    ["-REMOVED\nNAME=value", { NAME: "value" }],
+    ["NAME=\n", { NAME: "" }],
+    ["malformed\n\n=orphan", {}],
+  ])("reads %p", (stdout, expected) => {
+    expect(parseEnvironment(stdout)).toEqual(expected);
   });
 });
