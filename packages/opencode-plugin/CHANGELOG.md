@@ -1,5 +1,13 @@
 # @termwire/opencode-plugin
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [cfdcc19]
+  - @termwire/tmux@0.6.0
+  - @termwire/nvim@0.6.0
+
 ## 0.5.0
 
 ### Patch Changes
