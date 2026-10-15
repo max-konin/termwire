@@ -9,8 +9,7 @@
 - There is no root typecheck script. Use `bunx tsc --noEmit` for an explicit type check.
 - `bun run build` compiles every package, and `bun run verify:node` runs the built CLI and MCP
   server under Node. Run both before claiming a change is finished.
-- Run the CLI directly with `bun packages/cli/bin/termwire.ts`; the root README's
-  `bun run index.ts` command is stale.
+- Run the CLI directly with `bun packages/cli/bin/termwire.ts`.
 
 ## Runtime
 

@@ -1,6 +1,20 @@
 {
   "name": "@termwire/cli",
   "version": "0.6.0",
+  "description": "Creates tmux workspaces where a coding agent and Neovim run side by side, and opens files in the workspace editor.",
+  "keywords": [
+    "tmux",
+    "neovim",
+    "nvim",
+    "coding-agent",
+    "ai-agent",
+    "claude-code",
+    "opencode",
+    "git-worktree",
+    "workspace",
+    "cli",
+    "developer-tools"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -1,6 +1,16 @@
 {
   "name": "@termwire/nvim",
   "version": "0.6.0",
+  "description": "A typed adapter for talking to an already running Neovim instance over its RPC socket.",
+  "keywords": [
+    "neovim",
+    "nvim",
+    "rpc",
+    "remote",
+    "editor",
+    "adapter",
+    "typescript"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

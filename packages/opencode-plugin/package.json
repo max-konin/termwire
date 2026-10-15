@@ -1,6 +1,16 @@
 {
   "name": "@termwire/opencode-plugin",
   "version": "0.6.0",
+  "description": "A native OpenCode plugin that opens a file in the current Termwire workspace's Neovim and focuses the editor pane.",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plugin",
+    "neovim",
+    "tmux",
+    "coding-agent",
+    "editor"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

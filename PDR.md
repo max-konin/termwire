@@ -1,6 +1,8 @@
 # Termwire — Product Design Record
 
-**Status:** implemented through the `open` command and the Node runtime move.
+**Status:** `up`, `ls`, `down`, `open` and `install` are implemented and published;
+the published packages run on Node. `doctor`, `status` and workspace persistence are
+not implemented.
 
 ## Vision
 
@@ -86,6 +88,7 @@ termwire down [name]                     # kill that workspace's session, or thi
 termwire down [name] -w [--force]        # and remove its worktree
 termwire open <path>[:line]              # open a file in the workspace editor
 termwire open <path> --line <number>     # same, keeping the path verbatim
+termwire install                         # write a layout template and the agent skill
 ```
 
 `open` exists so that any agent with shell access can show the user a file,

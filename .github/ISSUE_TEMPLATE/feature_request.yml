@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest something Termwire should do
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: |
+        The workflow, not the feature — the fix often turns out to be a different one than
+        the request.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: Commands, flags, or behavior, if you already have a shape for it.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today instead
+      description: |
+        The tmux and Git commands you type by hand, or the tool you use for it. This says
+        how much the feature is worth.

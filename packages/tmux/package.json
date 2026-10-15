@@ -1,6 +1,16 @@
 {
   "name": "@termwire/tmux",
   "version": "0.6.0",
+  "description": "A thin, typed adapter for tmux 3.2 or newer.",
+  "keywords": [
+    "tmux",
+    "adapter",
+    "terminal",
+    "session",
+    "pane",
+    "typescript",
+    "cli"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

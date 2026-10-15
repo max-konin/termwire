@@ -1,0 +1,49 @@
+name: Bug report
+description: Something Termwire does is wrong or fails
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what you got instead.
+      placeholder: |
+        $ termwire up dev
+        ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        Termwire drives tmux and Neovim through their own interfaces, so their versions
+        usually decide the behavior more than Termwire's own does.
+      value: |
+        termwire:
+        tmux:      # tmux -V
+        neovim:    # nvim --version | head -1
+        node:      # node --version
+        os:        # uname -sr
+    validations:
+      required: true
+
+  - type: textarea
+    id: workspaces
+    attributes:
+      label: Workspaces
+      description: |
+        The output of `termwire ls`, if a workspace is involved. The directories are paths
+        on your machine — redact them if that matters to you.
+      render: text
+
+  - type: textarea
+    id: reap-log
+    attributes:
+      label: Reap log
+      description: |
+        For a process that outlived its session, or one that died when it should not have:
+        the tail of `${XDG_STATE_HOME:-~/.local/state}/termwire/reap.log`. A tmux hook's
+        output goes nowhere else.
+      render: text

@@ -228,6 +228,9 @@ be checked honestly. Hooks are bypassable, so CI stays authoritative. See
 [`PDR.md`](PDR.md) records design intent and is not a description of what ships
 today.
 
+[`CONTRIBUTING.md`](CONTRIBUTING.md) has the setup, the checks to run, and what a
+change needs before it is a pull request.
+
 ## License
 
 MIT
