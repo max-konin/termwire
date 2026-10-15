@@ -1,11 +1,28 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
 version: 2
 updates:
-  - package-ecosystem: "" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # The repository is a Bun workspace: one lockfile at the root covers every package,
+  # so one entry is enough. Dependabot reads the text `bun.lock`, never the legacy
+  # binary `bun.lockb`.
+  - package-ecosystem: "bun"
+    directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      # One pull request a week for the harmless bumps, so CI runs once and there is one
+      # thing to read. A major keeps its own pull request, because it is the one that
+      # needs a person.
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # The five packages depend on each other and version together as one fixed
+      # Changesets group. Bumping those ranges is `changeset version`'s job.
+      - dependency-name: "@termwire/*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
