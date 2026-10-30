@@ -44,7 +44,7 @@
     "url": "https://github.com/max-konin/termwire/issues"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "1.19.0",
+    "@opencode-ai/plugin": "1.19.4",
     "@termwire/nvim": "^0.6.0",
     "@termwire/tmux": "^0.6.0"
   }
