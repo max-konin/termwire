@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { dirname, resolve as resolvePath } from "node:path";
 import { Command, CommanderError } from "commander";
 import { agentIds, parseAgentIds } from "./agents.js";
@@ -31,16 +30,6 @@ import {
 } from "./workspaces.js";
 import { findGitRoot, inspectWorktree, prepareWorktree, removeWorktree } from "./worktree.js";
 
-/**
- * Read at runtime rather than baked in at build time, the way `@termwire/mcp`
- * reports its own version. `dist/program.js` and `src/program.ts` both sit one
- * level below the package root, so the same specifier resolves in a published
- * install and from a checkout.
- */
-const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
-  version: string;
-};
-
 export interface ProgramDependencies {
   up: (request: UpRequest) => Promise<void>;
   ls: () => Promise<Workspace[]>;
@@ -50,6 +39,7 @@ export interface ProgramDependencies {
   install: (request: InstallRequest) => Promise<InstallResult>;
   /** Only the table shortens `$HOME` to `~`; the JSON rows keep absolute paths. */
   homedir: () => string;
+  version: string;
   writeError: (message: string) => void;
   writeOutput: (message: string) => void;
 }
@@ -86,7 +76,7 @@ export function createUp({
       findGitRoot: (directory) => findGitRoot(git, directory),
       prepareBranch: ({ cwd: directory, name }) => prepareBranch(git, directory, name),
       prepareWorktree: (options) =>
-        prepareWorktree({ ...options, exec: git, pathExists: fs.exists }),
+        prepareWorktree({ ...options, exec: git, pathExists: fs.exists, realpath: fs.realpath }),
       mkdir: fs.mkdir,
       removeFile: (path) => removeStaleSocket(path, fs.unlink),
       tmux,
@@ -237,6 +227,7 @@ export function createCommands(runtime: CliRuntime): ProgramDependencies {
     reap: createReap(runtime),
     install: createInstall(runtime),
     homedir: runtime.host.homedir,
+    version: runtime.host.version,
     writeError: runtime.host.writeError,
     writeOutput: runtime.host.writeOutput,
   };
@@ -249,7 +240,7 @@ export function createProgram(dependencies: ProgramDependencies): Command {
   });
   program.exitOverride();
   program.showHelpAfterError();
-  program.version(manifest.version, "-V, --version", "print the installed termwire version");
+  program.version(dependencies.version, "-V, --version", "print the installed termwire version");
 
   program
     .command("up <name>")

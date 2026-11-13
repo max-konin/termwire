@@ -1,11 +1,13 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import {
   appendFile as appendFileToDisk,
   mkdir as mkdirDirectory,
   readdir as readDirectory,
   readFile as readFileFromDisk,
   rename as renameFile,
+  realpath as resolveRealpath,
   stat,
   unlink as unlinkFile,
   writeFile as writeFileToDisk,
@@ -30,6 +32,7 @@ export interface RuntimeFileSystem {
   rename: (from: string, to: string) => Promise<void>;
   appendFile: (path: string, contents: string) => Promise<void>;
   unlink: (path: string) => Promise<void>;
+  realpath: (path: string) => Promise<string>;
 }
 
 export interface RuntimeHost {
@@ -42,6 +45,8 @@ export interface RuntimeHost {
   execPath: string;
   /** The launched script, which the tmux hook has to name by absolute path. */
   scriptPath: string | undefined;
+  /** The installed `@termwire/cli` version, for `--version`. */
+  version: string;
   now: () => Date;
   /** A unique name for a temporary file, so two writers cannot collide. */
   randomId: () => string;
@@ -109,6 +114,7 @@ export function createNodeRuntime(): CliRuntime {
       rename: renameFile,
       appendFile: appendFileToDisk,
       unlink: unlinkFile,
+      realpath: resolveRealpath,
     },
     host: {
       env,
@@ -118,6 +124,7 @@ export function createNodeRuntime(): CliRuntime {
       pid: process.pid,
       execPath: process.execPath,
       scriptPath: process.argv[1],
+      version: readPackageVersion(),
       now: () => new Date(),
       randomId: randomUUID,
       isTerminal: process.stdin.isTTY === true && process.stdout.isTTY === true,
@@ -135,6 +142,17 @@ export function createNodeRuntime(): CliRuntime {
         columns: process.stdout.columns ?? 80,
       }),
   };
+}
+
+/**
+ * Read at runtime rather than baked in at build time, the way `@termwire/mcp`
+ * reports its own version. `dist/runtime.js` and `src/runtime.ts` both sit one
+ * level below the package root, so the same specifier resolves in a published
+ * install and from a checkout.
+ */
+function readPackageVersion(): string {
+  const manifest = readFileSync(new URL("../package.json", import.meta.url), "utf8");
+  return (JSON.parse(manifest) as { version: string }).version;
 }
 
 /**

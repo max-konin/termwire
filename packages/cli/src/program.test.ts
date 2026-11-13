@@ -2,7 +2,6 @@ import { expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import type { createNvim as createNvimAdapter } from "@termwire/nvim";
 import type { createTmux as createTmuxAdapter } from "@termwire/tmux";
-import packageJson from "../package.json";
 import type { DownRequest, DownResult } from "./down.js";
 import type { Exec } from "./exec.js";
 import type { InstallPrompter, InstallRequest, InstallResult } from "./install.js";
@@ -53,6 +52,7 @@ function createCommandStubs(overrides: Partial<ProgramDependencies> = {}): Progr
     reap: createReapStub(),
     install: createInstallStub(),
     homedir: () => "/home/user",
+    version: "1.2.3",
     writeError: mock<(message: string) => void>(),
     writeOutput: mock<(message: string) => void>(),
     ...overrides,
@@ -81,6 +81,7 @@ function createTestRuntime(
       rename: async () => {},
       appendFile: async () => {},
       unlink: async () => {},
+      realpath: async (path) => path,
       ...overrides.fs,
     },
     host: {
@@ -91,6 +92,7 @@ function createTestRuntime(
       pid: 4242,
       execPath: "/usr/local/bin/node",
       scriptPath: "/opt/termwire/bin/termwire.js",
+      version: "1.2.3",
       now: () => new Date("2026-09-28T10:00:00.000Z"),
       randomId: () => "abc123",
       isTerminal: false,
@@ -172,7 +174,7 @@ test.each([["--version"], ["-V"]])("prints the package version for %s", async (f
     ),
   ).toBe(0);
 
-  expect(writeOutput).toHaveBeenCalledWith(`${packageJson.version}\n`);
+  expect(writeOutput).toHaveBeenCalledWith("1.2.3\n");
   expect(writeError).not.toHaveBeenCalled();
 });
 

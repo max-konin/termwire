@@ -98,9 +98,7 @@
   process state into one `CliRuntime`. Commands take it and destructure what they use in the
   parameter list. Production code carries no `dependencies.x ?? realThing` defaults: `run`
   receives a runtime, `bin/termwire.ts` builds the real one, and tests build a fake one through a
-  single helper. `node:path` is pure string work and stays allowed anywhere; two files still reach
-  past the seam and are worth folding in when touched — `worktree.ts` calls `realpath` and
-  `program.ts` reads its own `package.json` for `--version`.
+  single helper. `node:path` is pure string work and stays allowed anywhere.
 - Process scanning is platform-agnostic above the seam. `process-scan.ts` holds only the
   `SessionScanner` type and the contract a platform must honour; `process-scan-darwin.ts`
   (two `ps` passes) and `process-scan-linux.ts` (`/proc`) each take their own dependencies

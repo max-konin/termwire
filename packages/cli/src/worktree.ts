@@ -1,4 +1,3 @@
-import { realpath as resolveRealpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { sanitizeComponent } from "./identity.js";
 
@@ -77,7 +76,7 @@ export function parseWorktreeList(output: string): WorktreeEntry[] {
 export async function prepareWorktree(options: {
   exec: GitExec;
   pathExists: (path: string) => Promise<boolean>;
-  realpath?: (path: string) => Promise<string>;
+  realpath: (path: string) => Promise<string>;
   gitRoot: string;
   project: string;
   name: string;
@@ -97,7 +96,7 @@ export async function prepareWorktree(options: {
       gitRoot: options.gitRoot,
       exec: options.exec,
       pathExists: options.pathExists,
-      realpath: options.realpath ?? resolveRealpath,
+      realpath: options.realpath,
     });
   }
 
