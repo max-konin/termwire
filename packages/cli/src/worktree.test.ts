@@ -439,6 +439,7 @@ test("uses a sanitized directory key while preserving the exact branch", async (
     await prepareWorktree({
       exec,
       pathExists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(false),
+      realpath: async (path) => path,
       gitRoot: "/repo/main",
       project: "Repo",
       name: "session",
@@ -462,6 +463,7 @@ test("defaults the exact branch to the unsanitized directory key", async () => {
   await prepareWorktree({
     exec,
     pathExists: mock<(path: string) => Promise<boolean>>().mockResolvedValue(false),
+    realpath: async (path) => path,
     gitRoot: "/repo/main",
     project: "Repo",
     name: "chore/improve",
@@ -516,6 +518,7 @@ test("rejects a derived target registered on another branch", async () => {
     prepareWorktree({
       exec,
       pathExists: mock<(path: string) => Promise<boolean>>(),
+      realpath: async (path) => path,
       gitRoot: "/repo/main",
       project: "Repo",
       name: "session",

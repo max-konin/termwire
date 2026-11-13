@@ -23,6 +23,9 @@ export interface UnsetHookOptions {
   global?: boolean;
 }
 
+/** `show-hooks` prints an array hook as `name[index]` and a plain one as `name`. */
+const hookKey = /^([A-Za-z0-9_-]+)(?:\[(\d+)\])?$/;
+
 export function parseHooks(stdout: string): HookEntry[] {
   const entries: HookEntry[] = [];
 
@@ -33,7 +36,7 @@ export function parseHooks(stdout: string): HookEntry[] {
     const separator = trimmed.indexOf(" ");
     const key = separator === -1 ? trimmed : trimmed.slice(0, separator);
     const command = separator === -1 ? "" : trimmed.slice(separator + 1);
-    const parsed = /^([A-Za-z0-9_-]+)(?:\[(\d+)\])?$/.exec(key);
+    const parsed = hookKey.exec(key);
     if (!parsed) continue;
 
     const index = parsed[2];
