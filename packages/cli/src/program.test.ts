@@ -259,8 +259,8 @@ test("presents up failures without a stack trace", async () => {
 });
 
 test("does not read config files when attaching an existing runtime session", async () => {
-  const hasSession = mock<(session: string) => Promise<boolean>>().mockResolvedValue(true);
-  const attach = mock<(session: string) => Promise<void>>().mockResolvedValue();
+  const hasSession = mock<TmuxAdapter["hasSession"]>().mockResolvedValue(true);
+  const attach = mock<TmuxAdapter["attach"]>().mockResolvedValue();
   const pathExists = mock<(path: string) => Promise<boolean>>().mockResolvedValue(true);
   const readFile = mock<(path: string) => Promise<string>>().mockResolvedValue('{ "version": 1 }');
   const runtimeUp = createUp(
@@ -281,21 +281,21 @@ test("does not read config files when attaching an existing runtime session", as
 
 test("reads global then project config for a new runtime session", async () => {
   const tmux = {
-    hasSession: mock<(session: string) => Promise<boolean>>().mockResolvedValue(false),
-    newSession: mock<() => Promise<{ windowId: string; paneId: string }>>().mockResolvedValue({
+    hasSession: mock<TmuxAdapter["hasSession"]>().mockResolvedValue(false),
+    newSession: mock<TmuxAdapter["newSession"]>().mockResolvedValue({
       windowId: "@1",
       paneId: "%1",
     }),
-    setSessionTitle: mock<() => Promise<void>>().mockResolvedValue(),
-    newWindow: mock<() => Promise<{ windowId: string; paneId: string }>>().mockResolvedValue({
+    setSessionTitle: mock<TmuxAdapter["setSessionTitle"]>().mockResolvedValue(),
+    newWindow: mock<TmuxAdapter["newWindow"]>().mockResolvedValue({
       windowId: "@2",
       paneId: "%2",
     }),
-    setEnvironment: mock<() => Promise<void>>().mockResolvedValue(),
-    respawnPane: mock<() => Promise<void>>().mockResolvedValue(),
-    selectWindow: mock<() => Promise<void>>().mockResolvedValue(),
-    selectPane: mock<() => Promise<void>>().mockResolvedValue(),
-    attach: mock<() => Promise<void>>().mockResolvedValue(),
+    setEnvironment: mock<TmuxAdapter["setEnvironment"]>().mockResolvedValue(),
+    respawnPane: mock<TmuxAdapter["respawnPane"]>().mockResolvedValue(),
+    selectWindow: mock<TmuxAdapter["selectWindow"]>().mockResolvedValue(),
+    selectPane: mock<TmuxAdapter["selectPane"]>().mockResolvedValue(),
+    attach: mock<TmuxAdapter["attach"]>().mockResolvedValue(),
   } as unknown as TmuxAdapter;
   const readFile = mock<(path: string) => Promise<string>>().mockResolvedValue(
     '// config\n{ "version": 1, }',
@@ -315,8 +315,8 @@ test("reads global then project config for a new runtime session", async () => {
 });
 
 test("wires runtime requests through Git discovery and existing-session attach", async () => {
-  const hasSession = mock<(session: string) => Promise<boolean>>().mockResolvedValue(true);
-  const attach = mock<(session: string) => Promise<void>>().mockResolvedValue();
+  const hasSession = mock<TmuxAdapter["hasSession"]>().mockResolvedValue(true);
+  const attach = mock<TmuxAdapter["attach"]>().mockResolvedValue();
   const tmux = { hasSession, attach } as unknown as TmuxAdapter;
   const gitExec = mock<GitExec>().mockResolvedValue({
     exitCode: 0,
@@ -343,21 +343,21 @@ test("wires runtime requests through Git discovery and existing-session attach",
 
 test("wires runtime branch preparation before creating a new session", async () => {
   const tmux = {
-    hasSession: mock<() => Promise<boolean>>().mockResolvedValue(false),
-    newSession: mock<() => Promise<{ windowId: string; paneId: string }>>().mockResolvedValue({
+    hasSession: mock<TmuxAdapter["hasSession"]>().mockResolvedValue(false),
+    newSession: mock<TmuxAdapter["newSession"]>().mockResolvedValue({
       windowId: "@1",
       paneId: "%1",
     }),
-    setSessionTitle: mock<() => Promise<void>>().mockResolvedValue(),
-    setEnvironment: mock<() => Promise<void>>().mockResolvedValue(),
-    respawnPane: mock<() => Promise<void>>().mockResolvedValue(),
-    newWindow: mock<() => Promise<{ windowId: string; paneId: string }>>().mockResolvedValue({
+    setSessionTitle: mock<TmuxAdapter["setSessionTitle"]>().mockResolvedValue(),
+    setEnvironment: mock<TmuxAdapter["setEnvironment"]>().mockResolvedValue(),
+    respawnPane: mock<TmuxAdapter["respawnPane"]>().mockResolvedValue(),
+    newWindow: mock<TmuxAdapter["newWindow"]>().mockResolvedValue({
       windowId: "@2",
       paneId: "%2",
     }),
-    selectWindow: mock<() => Promise<void>>().mockResolvedValue(),
-    selectPane: mock<() => Promise<void>>().mockResolvedValue(),
-    attach: mock<() => Promise<void>>().mockResolvedValue(),
+    selectWindow: mock<TmuxAdapter["selectWindow"]>().mockResolvedValue(),
+    selectPane: mock<TmuxAdapter["selectPane"]>().mockResolvedValue(),
+    attach: mock<TmuxAdapter["attach"]>().mockResolvedValue(),
   } as unknown as TmuxAdapter;
   const gitExec = mock<GitExec>().mockImplementation(async (argv) => {
     if (argv.join(" ") === "git rev-parse --show-toplevel") {
@@ -534,11 +534,11 @@ test("presents open failures without a stack trace", async () => {
 });
 
 test("wires runtime open through the injected adapters and environment", async () => {
-  const isRunning = mock<(socket: string) => Promise<boolean>>().mockResolvedValue(true);
+  const isRunning = mock<NvimAdapter["isRunning"]>().mockResolvedValue(true);
   const openFile =
     mock<(socket: string, path: string, line?: number) => Promise<void>>().mockResolvedValue();
-  const selectWindow = mock<(target: string) => Promise<void>>().mockResolvedValue();
-  const selectPane = mock<(pane: string) => Promise<void>>().mockResolvedValue();
+  const selectWindow = mock<TmuxAdapter["selectWindow"]>().mockResolvedValue();
+  const selectPane = mock<TmuxAdapter["selectPane"]>().mockResolvedValue();
 
   const runtimeOpen = createOpen(
     createTestRuntime({
@@ -597,11 +597,11 @@ test("routes the hidden reap command and keeps it out of help", async () => {
 });
 
 test("installs the cleanup hook with absolute runtime paths", async () => {
-  const showHooks = mock<() => Promise<never[]>>().mockResolvedValue([]);
-  const setHook = mock<(options: unknown) => Promise<void>>().mockResolvedValue();
+  const showHooks = mock<TmuxAdapter["showHooks"]>().mockResolvedValue([]);
+  const setHook = mock<TmuxAdapter["setHook"]>().mockResolvedValue();
   const tmux = {
-    hasSession: mock<() => Promise<boolean>>().mockResolvedValue(true),
-    attach: mock<() => Promise<void>>().mockResolvedValue(),
+    hasSession: mock<TmuxAdapter["hasSession"]>().mockResolvedValue(true),
+    attach: mock<TmuxAdapter["attach"]>().mockResolvedValue(),
     showHooks,
     setHook,
   } as unknown as TmuxAdapter;
@@ -639,10 +639,10 @@ test.each([
   ["the script path is unknown", undefined],
 ])("warns and still brings the workspace up when %s", async (_label, scriptPath) => {
   const tmux = {
-    hasSession: mock<() => Promise<boolean>>().mockResolvedValue(true),
-    attach: mock<() => Promise<void>>().mockResolvedValue(),
-    showHooks: mock<() => Promise<never[]>>().mockRejectedValue(new Error("no server")),
-    setHook: mock<(options: unknown) => Promise<void>>().mockResolvedValue(),
+    hasSession: mock<TmuxAdapter["hasSession"]>().mockResolvedValue(true),
+    attach: mock<TmuxAdapter["attach"]>().mockResolvedValue(),
+    showHooks: mock<TmuxAdapter["showHooks"]>().mockRejectedValue(new Error("no server")),
+    setHook: mock<TmuxAdapter["setHook"]>().mockResolvedValue(),
   } as unknown as TmuxAdapter;
   const warn = mock<(message: string) => void>();
 
@@ -949,7 +949,7 @@ test("composes ls from the runtime: labeled sessions, Git, and the process scan"
     { name: "repo-dev", attached: true, path: "/home/user/projects/repo" },
     { name: "repo-plain", attached: false, path: "/home/user/projects/repo" },
   ]);
-  const showEnvironment = mock<(session: string) => Promise<Record<string, string>>>(
+  const showEnvironment = mock<TmuxAdapter["showEnvironment"]>(
     async (session): Promise<Record<string, string>> =>
       session === "repo-dev" ? { TERMWIRE_SESSION: "repo-dev" } : {},
   );
@@ -1049,7 +1049,7 @@ test("composes a bare down from the runtime: the inherited label names the sessi
   const listSessions = mock<TmuxAdapter["listSessions"]>().mockResolvedValue([
     { name: "repo-dev", attached: true, path: "/home/user/projects/repo" },
   ]);
-  const killSession = mock<(session: string) => Promise<void>>().mockResolvedValue();
+  const killSession = mock<TmuxAdapter["killSession"]>().mockResolvedValue();
   const git = mock<GitExec>();
 
   const runtimeDown = createDown(
@@ -1070,7 +1070,7 @@ test("composes down from the runtime: kills the session and removes its worktree
   const listSessions = mock<TmuxAdapter["listSessions"]>().mockResolvedValue([
     { name: "repo-dev", attached: false, path: "/home/user/projects/repo-dev" },
   ]);
-  const killSession = mock<(session: string) => Promise<void>>().mockResolvedValue();
+  const killSession = mock<TmuxAdapter["killSession"]>().mockResolvedValue();
   const git = mock<GitExec>(async (argv) => {
     if (argv.includes("--show-toplevel")) {
       return { exitCode: 0, stdout: "/repo\n", stderr: "" };
