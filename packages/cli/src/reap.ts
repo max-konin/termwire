@@ -148,9 +148,12 @@ export function formatReapReport(report: ReapReport, timestamp: string): string 
   return `${timestamp} ${fields.join(" ")}\n`;
 }
 
+/** A log record is one line, so a multi-line error message is flattened into it. */
+const whitespaceRun = /\s+/g;
+
 export function formatReapFailure(session: string, error: unknown, timestamp: string): string {
   const message = error instanceof Error ? error.message : String(error);
-  return `${timestamp} session=${session} error=${message.replace(/\s+/g, " ")}\n`;
+  return `${timestamp} session=${session} error=${message.replace(whitespaceRun, " ")}\n`;
 }
 
 /** `run-shell` output goes nowhere, so every reap records what it did here. */
